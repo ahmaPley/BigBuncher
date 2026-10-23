@@ -3,15 +3,17 @@ import type { LoaderId, LoaderVersion, McVersion, MultiPack } from '../../../sha
 import { api } from '../lib/api'
 import { LOADER_LABELS } from '../lib/assets'
 import { useApp } from '../lib/appState'
-import { Button, Modal, Segmented, Toggle } from './ui'
+import { BlockIcon, Button, Modal, Segmented, Toggle } from './ui'
 
 const LOADERS: LoaderId[] = ['vanilla', 'fabric', 'forge', 'neoforge', 'quilt']
 
 /** New state of a multi-pack: a copy of the active state, or a fresh version/loader. */
 export function AddStateModal({ pack, onClose }: { pack: MultiPack; onClose(): void }) {
-  const { run } = useApp()
+  const { run, instances } = useApp()
   const [stateName, setStateName] = useState('')
-  const [mode, setMode] = useState<'clone' | 'fresh'>('clone')
+  const [mode, setMode] = useState<'clone' | 'fresh' | 'existing'>('clone')
+  const standalone = instances.filter((i) => !i.multiPackId)
+  const [existingId, setExistingId] = useState(standalone[0]?.id ?? '')
   const [copyWorlds, setCopyWorlds] = useState(false)
   const [loader, setLoader] = useState<LoaderId>('fabric')
   const [mcVersions, setMcVersions] = useState<McVersion[]>([])
@@ -47,17 +49,20 @@ export function AddStateModal({ pack, onClose }: { pack: MultiPack; onClose(): v
     })
   }, [mode, loader, mcVersion])
 
-  const canSave = mode === 'clone' || (mcVersion && (loader === 'vanilla' || loaderVersion))
+  const canSave =
+    mode === 'clone' || (mode === 'existing' ? Boolean(existingId) : Boolean(mcVersion && (loader === 'vanilla' || loaderVersion)))
 
   const save = async (): Promise<void> => {
     setBusy(true)
     const request =
       mode === 'clone'
         ? { stateName, mode, copyWorlds }
-        : { stateName, mode, fresh: { name: stateName, icon: pack.icon, mcVersion, loader, loaderVersion: loaderVersion || undefined } }
+        : mode === 'existing'
+          ? { stateName, mode, existingInstanceId: existingId }
+          : { stateName, mode, fresh: { name: stateName, icon: pack.icon, mcVersion, loader, loaderVersion: loaderVersion || undefined } }
     // Fresh states install in the background (progress in the sidebar), so don't block the dialog on them.
-    const pending = run(() => api.multipacks.addState(pack.id, request), mode === 'clone' ? 'Состояние добавлено' : 'Новое состояние установлено')
-    if (mode === 'clone') await pending
+    const pending = run(() => api.multipacks.addState(pack.id, request), mode === 'fresh' ? 'Новое состояние установлено' : 'Состояние добавлено')
+    if (mode !== 'fresh') await pending
     setBusy(false)
     onClose()
   }
@@ -67,17 +72,34 @@ export function AddStateModal({ pack, onClose }: { pack: MultiPack; onClose(): v
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         <div className="field">
           <label>Название состояния</label>
-          <input className="input" autoFocus placeholder="Например: «С шейдерами» или «Хардкор»" value={stateName} onChange={(e) => setStateName(e.target.value)} />
+          <input className="input" autoFocus placeholder={mode === 'existing' ? 'Пусто = название сборки' : 'Например: «С шейдерами» или «Хардкор»'} value={stateName} onChange={(e) => setStateName(e.target.value)} />
         </div>
         <Segmented
           value={mode}
           onChange={setMode}
           options={[
             { value: 'clone', label: 'Копия текущего' },
+            { value: 'existing', label: 'Существующая сборка', disabled: standalone.length === 0 },
             { value: 'fresh', label: 'Другая версия' }
           ]}
         />
-        {mode === 'clone' ? (
+        {mode === 'existing' ? (
+          <div className="existing-list">
+            {standalone.map((i) => (
+              <label key={i.id} className={`existing-item ${existingId === i.id ? 'active' : ''}`}>
+                <input type="radio" name="existing" checked={existingId === i.id} onChange={() => setExistingId(i.id)} />
+                <BlockIcon icon={i.icon} size={28} />
+                <span className="ellipsis" style={{ fontWeight: 600 }}>{i.name}</span>
+                <span className="dim" style={{ marginLeft: 'auto', fontSize: 12 }}>
+                  {i.mcVersion} · {LOADER_LABELS[i.loader]}
+                </span>
+              </label>
+            ))}
+            <p className="dim" style={{ fontSize: 12, margin: '4px 0 0' }}>
+              Сборка станет состоянием этой мультисборки со всеми своими модами и мирами — ничего не копируется.
+            </p>
+          </div>
+        ) : mode === 'clone' ? (
           <div className="row muted" style={{ fontSize: 13 }}>
             Скопировать миры тоже <span className="spacer" />
             <Toggle on={copyWorlds} onChange={setCopyWorlds} />

@@ -157,8 +157,13 @@ export async function runFeatureTest(): Promise<void> {
   assert(mp.listMultiPacks()[0].activeStateId === withWorlds.id, 'new state became active')
   mp.switchState(pack.id, base.id)
   assert(mp.listMultiPacks()[0].activeStateId === base.id, 'switched back to state 1')
+  const other = await createInstance({ name: 'feat-other', icon: 'stone', mcVersion: '1.21.1', loader: 'vanilla' })
+  const attached = await mp.addState(pack.id, { stateName: '', mode: 'existing', existingInstanceId: other.id })
+  assert(attached.multiPackId === pack.id && attached.stateName === 'feat-other', 'existing instance attached as state')
+  assert(mp.listMultiPacks()[0].activeStateId === other.id, 'attached state became active')
+  mp.switchState(pack.id, base.id)
   await mp.removeState(clone.id)
-  assert(listInstances().filter((i) => i.multiPackId === pack.id).length === 2, 'state removed (to Recycle Bin)')
+  assert(listInstances().filter((i) => i.multiPackId === pack.id).length === 3, 'state removed (to Recycle Bin)')
 
   // Shared resource pack: a minimal zip with pack.mcmeta is enough for the game and for us.
   const sharedDir = join(gameDir(), 'shared', 'resourcepacks')

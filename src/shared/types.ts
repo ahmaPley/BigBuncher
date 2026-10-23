@@ -175,10 +175,14 @@ export interface MultiPack {
 
 export interface NewStateRequest {
   stateName: string
-  /** clone = copy of the active state (mods, configs, optionally worlds); fresh = new version/loader. */
-  mode: 'clone' | 'fresh'
+  /**
+   * clone = copy of the active state (mods, configs, optionally worlds); fresh = new version/loader;
+   * existing = attach an instance that already exists (it leaves the plain instance list).
+   */
+  mode: 'clone' | 'fresh' | 'existing'
   copyWorlds?: boolean
   fresh?: NewInstanceRequest
+  existingInstanceId?: string
 }
 
 export interface ResourcePack {

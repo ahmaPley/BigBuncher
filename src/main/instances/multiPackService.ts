@@ -81,6 +81,11 @@ export async function addState(packId: string, req: NewStateRequest): Promise<In
   const pack = getPack(packId)
   const stateName = req.stateName.trim() || `Состояние ${statesOf(packId).length + 1}`
 
+  if (req.mode === 'existing') {
+    if (!req.existingInstanceId) throw new Error('Выберите сборку')
+    return attachInstance(packId, req.existingInstanceId, req.stateName)
+  }
+
   if (req.mode === 'fresh') {
     if (!req.fresh) throw new Error('Не выбрана версия для нового состояния')
     const created = await createInstance(
@@ -110,6 +115,17 @@ export async function addState(packId: string, req: NewStateRequest): Promise<In
   })
   switchState(packId, clone.id)
   return clone
+}
+
+/** Adds an existing standalone instance to the multi-pack as a new state (its folder stays where it is). */
+export function attachInstance(packId: string, instanceId: string, stateName: string): Instance {
+  const pack = getPack(packId)
+  const instance = getInstance(instanceId)
+  if (instance.multiPackId) throw new Error('Эта сборка уже входит в мультисборку')
+  const name = stateName.trim() || instance.name
+  patchInstance(instanceId, { multiPackId: packId, stateName: name })
+  switchState(pack.id, instanceId)
+  return getInstance(instanceId)
 }
 
 export function switchState(packId: string, stateId: string): MultiPack {
