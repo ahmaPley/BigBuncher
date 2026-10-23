@@ -41,10 +41,14 @@ try {
 
   $tag = "v$version"
   try { $existing = Api GET "https://api.github.com/repos/$Repo/releases/tags/$tag" $null } catch { $existing = $null }
-  if ($existing) { throw "Release $tag already exists - bump the version in package.json" }
-
-  $release = Api POST "https://api.github.com/repos/$Repo/releases" @{ tag_name = $tag; name = "BigBuncher $version"; body = $Notes; draft = $false; prerelease = $false }
-  Write-Host "Created release $tag, uploading BigBuncher.exe ($([math]::Round((Get-Item $exe).Length / 1MB)) MB)..."
+  if ($existing -and ($existing.assets | Where-Object { $_.name -eq "BigBuncher.exe" })) {
+    throw "Release $tag already has BigBuncher.exe - bump the version in package.json"
+  }
+  # A release left without the exe (failed upload) is reused, so the script can simply be re-run.
+  $release = if ($existing) { $existing } else {
+    Api POST "https://api.github.com/repos/$Repo/releases" @{ tag_name = $tag; name = "BigBuncher $version"; body = $Notes; draft = $false; prerelease = $false }
+  }
+  Write-Host "Release $tag ready, uploading BigBuncher.exe ($([math]::Round((Get-Item $exe).Length / 1MB)) MB)..."
 
   $upload = "https://uploads.github.com/repos/$Repo/releases/$($release.id)/assets?name=BigBuncher.exe"
   Invoke-WebRequest -Method POST -Uri $upload -Headers $headers -InFile $exe -ContentType "application/octet-stream" -UseBasicParsing | Out-Null
