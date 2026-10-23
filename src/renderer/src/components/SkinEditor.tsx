@@ -96,11 +96,18 @@ export function SkinEditor({ initial, initialName, initialModel, onSave, onCance
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
       if ((e.target as HTMLElement).tagName === 'INPUT' || (e.target as HTMLElement).tagName === 'SELECT') return
-      const k = e.key.toLowerCase()
-      if (e.ctrlKey && k === 'z') return e.shiftKey ? doc.redo() : doc.undo()
-      if (e.ctrlKey && k === 'y') return doc.redo()
-      if (k === '+' || k === '=') return zoom(1)
-      if (k === '-') return zoom(-1)
+      // e.code = physical key, so shortcuts also work on the Russian layout (Ctrl+Я = Ctrl+Z).
+      const k = e.code.startsWith('Key') ? e.code.slice(3).toLowerCase() : e.key
+      if (e.ctrlKey && k === 'z') {
+        e.preventDefault()
+        return e.shiftKey ? doc.redo() : doc.undo()
+      }
+      if (e.ctrlKey && k === 'y') {
+        e.preventDefault()
+        return doc.redo()
+      }
+      if (e.code === 'Equal' || e.code === 'NumpadAdd') return zoom(1)
+      if (e.code === 'Minus' || e.code === 'NumpadSubtract') return zoom(-1)
       const t = TOOLS.find((x) => x.key === k)
       if (t && !e.ctrlKey) setTool(t.id)
     }
