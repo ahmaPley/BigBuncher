@@ -8,7 +8,9 @@
 param(
   [string]$Repo = "ahmaPley/BigBuncher",
   [string]$TokenFile = "$env:USERPROFILE\.secrets\github_token.txt",
-  [string]$Notes = ""
+  [string]$Notes = "",
+  # Replace the exe of an already published release (hotfix without a version bump).
+  [switch]$Replace
 )
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
@@ -41,8 +43,13 @@ try {
 
   $tag = "v$version"
   try { $existing = Api GET "https://api.github.com/repos/$Repo/releases/tags/$tag" $null } catch { $existing = $null }
-  if ($existing -and ($existing.assets | Where-Object { $_.name -eq "BigBuncher.exe" })) {
-    throw "Release $tag already has BigBuncher.exe - bump the version in package.json"
+  $oldAsset = if ($existing) { $existing.assets | Where-Object { $_.name -eq "BigBuncher.exe" } } else { $null }
+  if ($oldAsset -and -not $Replace) {
+    throw "Release $tag already has BigBuncher.exe - bump the version in package.json (or pass -Replace for a hotfix)"
+  }
+  if ($oldAsset) {
+    Write-Host "Removing the old BigBuncher.exe from $tag"
+    Invoke-WebRequest -Method DELETE -Uri "https://api.github.com/repos/$Repo/releases/assets/$($oldAsset.id)" -Headers $headers -UseBasicParsing | Out-Null
   }
   # A release left without the exe (failed upload) is reused, so the script can simply be re-run.
   $release = if ($existing) { $existing } else {
