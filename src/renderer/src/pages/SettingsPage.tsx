@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { Settings } from '../../../shared/types'
+import type { GraphicsInfo, Settings } from '../../../shared/types'
 import { Icon } from '../components/Icon'
 import { Button, Dropdown, Segmented, Toggle } from '../components/ui'
 import { api } from '../lib/api'
@@ -18,8 +18,10 @@ export function SettingsPage() {
   const [jvmArgs, setJvmArgs] = useState(settings!.jvmArgs)
   const [cfKey, setCfKey] = useState(settings!.curseforgeApiKey)
   const [res, setRes] = useState(settings!.resolution)
+  const [gfx, setGfx] = useState<GraphicsInfo>()
 
   useEffect(() => {
+    api.graphics.detect().then(setGfx, () => undefined)
     void api.system.totalMemoryMb().then(setTotalMb)
     void api.system.appVersion().then(setVersion)
     api.settings.detectJava().then(setJavas, () => setJavas([]))
@@ -215,6 +217,51 @@ export function SettingsPage() {
                 console.curseforge.com
               </a>
             </span>
+          </div>
+        </div>
+
+        <div className="card">
+          <div className="card-title">
+            <Icon name="gpu" /> Графика
+          </div>
+          <div className="field" style={{ marginBottom: 10 }}>
+            <label>Рендерер (Minecraft 26.2 и новее)</label>
+            <Segmented
+              value={s.graphicsApi}
+              onChange={(v) => update({ graphicsApi: v })}
+              options={[
+                { value: 'ask', label: 'Спросить' },
+                { value: 'auto', label: 'Авто' },
+                { value: 'vulkan', label: 'Vulkan' },
+                { value: 'opengl', label: 'OpenGL' }
+              ]}
+            />
+            <span className="dim" style={{ fontSize: 12 }}>
+              {gfx ? `${gfx.gpu} · Vulkan ${gfx.vulkan ? 'есть' : 'не найден'} · «Авто» выберет ${gfx.recommended === 'vulkan' ? 'Vulkan' : 'OpenGL'}` : 'Проверяю видеокарту…'}
+            </span>
+          </div>
+          <span className="dim" style={{ fontSize: 12 }}>Если игра вылетает или чёрный экран — выбери OpenGL. Доктор крашей переключит сам, если увидит, что дело в Vulkan.</span>
+        </div>
+
+        <div className="card">
+          <div className="card-title">
+            <Icon name="stethoscope" /> Доктор крашей и разработка
+          </div>
+          <div className="setting-row">
+            <div>
+              <div className="label">Проверять моды перед запуском</div>
+              <div className="hint">Дубли, моды не под тот загрузчик, недостающие зависимости — до краша</div>
+            </div>
+            <span className="spacer" />
+            <Toggle on={s.preflightCheck} onChange={(v) => update({ preflightCheck: v })} />
+          </div>
+          <div className="setting-row">
+            <div>
+              <div className="label">Режим разработчика модов</div>
+              <div className="hint">Вкладка «Разработка»: сборка мода, отладчик, консоль, инспектор модов</div>
+            </div>
+            <span className="spacer" />
+            <Toggle on={s.devMode} onChange={(v) => update({ devMode: v })} />
           </div>
         </div>
 

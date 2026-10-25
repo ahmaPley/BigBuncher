@@ -59,7 +59,12 @@ const PATHS = {
   sliders: 'M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6',
   globe: 'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM2 12h20M12 2a15 15 0 0 1 0 20 15 15 0 0 1 0-20z',
   copy: 'M9 9h11v11H9zM5 15H4V4h11v1',
-  switch: 'M7 16V4m0 0L3 8m4-4 4 4M17 8v12m0 0 4-4m-4 4-4-4'
+  switch: 'M7 16V4m0 0L3 8m4-4 4 4M17 8v12m0 0 4-4m-4 4-4-4',
+  stethoscope: 'M5 3v6a5 5 0 0 0 10 0V3M5 3H3m2 0h2m8 0h-2m2 0h2M10 14v2a5 5 0 0 0 10 0v-2M20 14a2 2 0 1 0 0-4 2 2 0 0 0 0 4z',
+  code: 'm16 18 6-6-6-6M8 6l-6 6 6 6M14 4l-4 16',
+  hammer: 'm15 12-8.5 8.5a2.1 2.1 0 0 1-3-3L12 9m3 3 2-2m-2 2-3-3m5 1 4-4-5-5-4 4m5 5-5-5',
+  bug: 'M8 6V4m8 2V4M9 6h6a3 3 0 0 1 3 3v5a6 6 0 0 1-12 0V9a3 3 0 0 1 3-3zM6 12H2m20 0h-4M6 17l-3 2m15-2 3 2M6 8 3 6m15 2 3-2M12 12v8',
+  gpu: 'M2 7h20v10H2zM6 17v3m12-3v3M7 12a2 2 0 1 0 4 0 2 2 0 0 0-4 0zm7-2h4m-4 4h4'
 } as const
 
 export type IconName = keyof typeof PATHS

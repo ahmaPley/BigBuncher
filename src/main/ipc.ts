@@ -2,6 +2,9 @@ import { ipcMain } from 'electron'
 import { API_METHODS, type BigBuncherApi } from '../shared/ipc'
 import * as accounts from './auth/accountService'
 import { listTasks } from './core/tasks'
+import * as dev from './dev/devService'
+import * as doctor from './diagnostics/crashDoctor'
+import { detectGraphics, versionHasGraphicsChoice } from './minecraft/graphicsService'
 import * as instances from './instances/instanceService'
 import { detectInstalledJava } from './minecraft/javaService'
 import { getGameState, launchInstance, stopGame } from './minecraft/launchService'
@@ -24,7 +27,11 @@ const handlers: BigBuncherApi = {
   system,
   settings: {
     get: async () => getSettings(),
-    update: async (patch) => updateSettings(patch),
+    update: async (patch) => {
+      const next = updateSettings(patch)
+      if (patch.devMode !== undefined) dev.startDevWatchers()
+      return next
+    },
     detectJava: detectInstalledJava
   },
   accounts: {
@@ -51,7 +58,7 @@ const handlers: BigBuncherApi = {
     select: async (id) => instances.selectInstance(id)
   },
   game: {
-    launch: launchInstance,
+    launch: (id, opts) => launchInstance(id, opts),
     stop: async () => stopGame(),
     state: async () => getGameState()
   },
@@ -103,6 +110,36 @@ const handlers: BigBuncherApi = {
     install: updates.installUpdate
   },
   news: { latest: latestNews },
+  doctor: {
+    last: async (id) => doctor.lastDiagnosis(id),
+    analyzeLastRun: doctor.analyzeLastRun,
+    analyzeText: doctor.analyzeText,
+    preflight: doctor.preflight,
+    applyFixes: doctor.applyFixes,
+    startBisect: async (id) => {
+      void doctor.startBisect(id)
+    },
+    cancelBisect: async () => doctor.cancelBisect(),
+    bisectState: async () => doctor.bisectState()
+  },
+  graphics: {
+    detect: detectGraphics,
+    hasChoice: async (id) => versionHasGraphicsChoice(instances.getInstance(id).mcVersion)
+  },
+  dev: {
+    getProfile: async (id) => dev.getProfile(id),
+    saveProfile: async (id, patch) => dev.saveProfile(id, patch),
+    pickProject: dev.pickProject,
+    inspectProject: async (dir) => dev.inspectProject(dir),
+    build: dev.build,
+    cancelBuild: async () => dev.cancelBuild(),
+    deploy: async (id) => dev.deploy(id),
+    buildAndRun: dev.buildAndRun,
+    restart: dev.restartGame,
+    inspectMods: doctor.inspectMods,
+    listWorlds: async (id) => dev.listWorlds(id),
+    openFolder: dev.openDevFolder
+  },
   tasks: { list: async () => listTasks() }
 }
 

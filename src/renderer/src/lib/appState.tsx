@@ -1,9 +1,9 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import type { Account, GameLogLine, GameState, Instance, LoaderId, MultiPack, Settings, SkinEntry, TaskState, UpdateInfo } from '../../../shared/types'
+import type { Account, BisectState, DevLogLine, Diagnosis, GameLogLine, GameState, Instance, LoaderId, MultiPack, Settings, SkinEntry, TaskState, UpdateInfo } from '../../../shared/types'
 import { api } from './api'
 import { errorText } from './format'
 
-export type PageId = 'home' | 'install' | 'instances' | 'mods' | 'packs' | 'skins' | 'settings'
+export type PageId = 'home' | 'install' | 'instances' | 'mods' | 'packs' | 'skins' | 'dev' | 'settings'
 
 export interface Toast {
   id: number
@@ -42,6 +42,17 @@ interface AppState {
   dismissToast(id: number): void
   /** Runs an API call, showing a toast on failure. Returns undefined when it failed. */
   run<T>(action: () => Promise<T>, success?: string): Promise<T | undefined>
+
+  /** Starts the game; asks "Vulkan или OpenGL?" first when that was never answered. */
+  launch(instanceId: string, opts?: { skipPreflight?: boolean }): Promise<void>
+  graphicsAsk?: { instanceId: string; skipPreflight?: boolean }
+  setGraphicsAsk(v?: { instanceId: string; skipPreflight?: boolean }): void
+  /** Diagnosis shown in the Доктор крашей window. */
+  diagnosis?: Diagnosis
+  setDiagnosis(d?: Diagnosis): void
+  bisect?: BisectState
+  devLogs: DevLogLine[]
+  clearDevLogs(): void
 }
 
 const Ctx = createContext<AppState | null>(null)
@@ -61,7 +72,13 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   const [logs, setLogs] = useState<GameLogLine[]>([])
   const [toasts, setToasts] = useState<Toast[]>([])
   const [accountsOpen, setAccountsOpen] = useState(false)
+  const [graphicsAsk, setGraphicsAsk] = useState<{ instanceId: string; skipPreflight?: boolean }>()
+  const [diagnosis, setDiagnosis] = useState<Diagnosis>()
+  const [bisect, setBisect] = useState<BisectState>()
+  const [devLogs, setDevLogs] = useState<DevLogLine[]>([])
   const toastId = useRef(0)
+  const settingsRef = useRef<Settings | undefined>(undefined)
+  settingsRef.current = settings
 
   const dismissToast = useCallback((id: number) => setToasts((t) => t.filter((x) => x.id !== id)), [])
 
@@ -90,6 +107,26 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
 
   const refreshSkins = useCallback(async () => setSkins(await api.skins.list()), [])
 
+  // Hook for the trailer recorder (src/main/devtools/trailer.ts) to drive the UI.
+  useEffect(() => {
+    ;(window as unknown as { __bb: unknown }).__bb = { navigate: setPage, setGraphicsAsk, setDiagnosis }
+  }, [])
+
+  const launch = useCallback(
+    async (instanceId: string, opts?: { skipPreflight?: boolean }) => {
+      try {
+        if (settingsRef.current?.graphicsApi === 'ask' && (await api.graphics.hasChoice(instanceId))) {
+          setGraphicsAsk({ instanceId, ...opts })
+          return
+        }
+        await api.game.launch(instanceId, opts)
+      } catch (err) {
+        toast('error', 'Ошибка', errorText(err))
+      }
+    },
+    [toast]
+  )
+
   useEffect(() => {
     void Promise.all([api.settings.get(), api.accounts.list(), api.instances.list(), api.game.state(), api.tasks.list(), api.multipacks.list(), api.updates.info()]).then(
       ([s, a, i, g, t, mp, u]) => {
@@ -112,7 +149,10 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       api.on('multiPacksChanged', setMultiPacks),
       api.on('update', setUpdate),
       api.on('game', setGame),
-      api.on('gameLog', (line) => setLogs((l) => [...l.slice(-800), line])),
+      api.on('gameLog', (line) => setLogs((l) => [...l.slice(-2000), line])),
+      api.on('diagnosis', setDiagnosis),
+      api.on('bisect', setBisect),
+      api.on('devLog', (line) => setDevLogs((l) => [...l.slice(-1500), line])),
       api.on('task', (task) => {
         setTasks((list) => [...list.filter((t) => t.id !== task.id), task])
         if (task.status === 'error') toast('error', task.title, task.error)
@@ -159,9 +199,17 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       toast,
       toasts,
       dismissToast,
-      run
+      run,
+      launch,
+      graphicsAsk,
+      setGraphicsAsk,
+      diagnosis,
+      setDiagnosis,
+      bisect,
+      devLogs,
+      clearDevLogs: () => setDevLogs([])
     }
-  }, [page, pendingLoader, settings, accounts, instances, multiPacks, update, skins, defaultSkin, game, tasks, logs, accountsOpen, refreshSkins, toast, toasts, dismissToast, run])
+  }, [page, pendingLoader, settings, accounts, instances, multiPacks, update, skins, defaultSkin, game, tasks, logs, accountsOpen, refreshSkins, toast, toasts, dismissToast, run, launch, graphicsAsk, diagnosis, bisect, devLogs])
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>
 }

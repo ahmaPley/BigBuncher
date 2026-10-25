@@ -13,11 +13,13 @@ const NAV: { id: PageId; label: string; icon: IconName }[] = [
   { id: 'mods', label: 'Моды', icon: 'puzzle' },
   { id: 'packs', label: 'Текстурпаки', icon: 'image' },
   { id: 'skins', label: 'Скины', icon: 'shirt' },
+  { id: 'dev', label: 'Разработка', icon: 'code' },
   { id: 'settings', label: 'Настройки', icon: 'settings' }
 ]
 
 export function Sidebar() {
-  const { page, navigate, instances, multiPacks, tasks, selectedAccount, skinOf, setAccountsOpen, update, run } = useApp()
+  const { page, navigate, instances, multiPacks, tasks, selectedAccount, skinOf, setAccountsOpen, update, run, settings } = useApp()
+  const nav = NAV.filter((n) => n.id !== 'dev' || settings?.devMode)
   const [installing, setInstalling] = useState(false)
   // A multi-pack counts once, however many states it has.
   const visibleCount = instances.filter((i) => !i.multiPackId).length + multiPacks.length
@@ -31,7 +33,7 @@ export function Sidebar() {
       </div>
 
       <nav className="nav">
-        {NAV.map((item) => (
+        {nav.map((item) => (
           <button key={item.id} className={`nav-item ${page === item.id ? 'active' : ''}`} onClick={() => navigate(item.id)}>
             <Icon name={item.icon} />
             {item.label}

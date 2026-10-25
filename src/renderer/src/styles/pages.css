@@ -946,3 +946,265 @@ button.se-chip:hover {
 .existing-item input {
   accent-color: var(--green);
 }
+
+/* ───────── Доктор крашей ───────── */
+.doctor {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.doctor-head {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  padding: 14px;
+  border-radius: var(--radius);
+  background: linear-gradient(120deg, rgba(229, 72, 77, 0.18), rgba(229, 72, 77, 0.04));
+  border: 1px solid rgba(229, 72, 77, 0.25);
+}
+.doctor-head.preflight {
+  background: linear-gradient(120deg, rgba(245, 197, 66, 0.16), rgba(245, 197, 66, 0.03));
+  border-color: rgba(245, 197, 66, 0.25);
+}
+.doctor-head.disconnect {
+  background: linear-gradient(120deg, rgba(76, 155, 232, 0.18), rgba(76, 155, 232, 0.04));
+  border-color: rgba(76, 155, 232, 0.25);
+}
+.doctor-icon {
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.06);
+  animation: doctor-pulse 2.4s var(--ease) infinite;
+}
+@keyframes doctor-pulse {
+  50% {
+    box-shadow: 0 0 0 8px rgba(255, 255, 255, 0.03);
+  }
+}
+.doctor-headline {
+  font-size: 17px;
+  font-weight: 700;
+}
+.doctor-problems {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 46vh;
+  overflow: auto;
+  padding-right: 4px;
+}
+.doctor-problem {
+  padding: 14px;
+  border-radius: var(--radius);
+  background: var(--panel-strong);
+  border: 1px solid var(--border);
+  animation: fade-up 0.35s var(--ease) both;
+}
+.doctor-title {
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+.doctor-text {
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.chip.conf-high {
+  color: var(--green-bright);
+  background: var(--green-soft);
+}
+.chip.conf-medium {
+  color: var(--yellow);
+  background: rgba(245, 197, 66, 0.1);
+}
+.doctor-evidence {
+  margin-top: 8px;
+}
+.doctor-evidence pre {
+  margin: 6px 0 0;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  background: #070a0d;
+  color: #ff9da0;
+  font-size: 11px;
+  white-space: pre-wrap;
+  word-break: break-all;
+  user-select: text;
+}
+.link-btn {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  border: 0;
+  padding: 0;
+  background: none;
+  color: var(--text-dim);
+  font-size: 12px;
+  cursor: pointer;
+}
+.link-btn:hover {
+  color: var(--text);
+}
+.doctor-fixes {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
+}
+.doctor-fix {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.doctor-fix:hover {
+  background: var(--panel-hover);
+}
+.doctor-fix.active {
+  border-color: var(--green);
+  background: var(--green-soft);
+}
+.doctor-fix input {
+  accent-color: var(--green);
+}
+.doctor-rec {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--green-bright);
+}
+.doctor-result {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  border-radius: var(--radius);
+  background: var(--panel-strong);
+  font-size: 13px;
+}
+.doctor-result .ok {
+  color: var(--green-bright);
+}
+.doctor-result .bad {
+  color: #ff8b8f;
+}
+
+.bisect-banner {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 60;
+  width: 360px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  border-radius: var(--radius);
+  background: var(--panel-solid);
+  border: 1px solid var(--border-strong);
+  box-shadow: var(--shadow-lg);
+  animation: fade-up 0.35s var(--ease) both;
+}
+.bisect-banner.done {
+  border-color: var(--green);
+}
+.bisect-banner.error {
+  border-color: var(--red);
+}
+
+.gfx-choices {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+.gfx-choice {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+  text-align: center;
+  padding: 18px 12px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border-strong);
+  background: var(--panel-strong);
+  color: var(--text);
+  cursor: pointer;
+  transition: transform 0.2s var(--ease), border-color 0.2s, background 0.2s;
+}
+.gfx-choice span {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.gfx-choice:hover {
+  transform: translateY(-3px);
+  border-color: var(--green);
+  background: var(--panel-hover);
+}
+.gfx-choice.auto {
+  border-color: rgba(76, 186, 74, 0.45);
+  background: var(--green-soft);
+}
+
+/* ───────── Разработка ───────── */
+.dev-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 18px;
+  padding-bottom: 24px;
+}
+.dev-project {
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--panel-strong);
+  margin-bottom: 4px;
+}
+.dev-log {
+  height: 340px;
+}
+.mod-table {
+  display: flex;
+  flex-direction: column;
+  font-size: 12px;
+  max-height: 420px;
+  overflow: auto;
+}
+.mod-row {
+  display: grid;
+  grid-template-columns: 2fr 1.2fr 1fr 0.9fr 1.6fr;
+  gap: 10px;
+  padding: 7px 8px;
+  border-bottom: 1px solid var(--border);
+  align-items: start;
+}
+.mod-row.head {
+  position: sticky;
+  top: 0;
+  background: var(--panel-solid);
+  color: var(--text-dim);
+  font-weight: 600;
+}
+.mod-row.bad {
+  background: rgba(229, 72, 77, 0.07);
+}
+.mod-row.off {
+  opacity: 0.55;
+}
+.mod-issue {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  margin-top: 3px;
+  color: #ff8b8f;
+  white-space: normal;
+}
+.mono {
+  font-family: 'Cascadia Mono', Consolas, monospace;
+}

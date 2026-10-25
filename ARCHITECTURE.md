@@ -152,6 +152,33 @@ src/renderer/src/
 выхода лаунчера, копирует файл поверх `PORTABLE_EXECUTABLE_FILE` и запускает его. Публикация: `npm run release`
 (поднять `version` в package.json → сборка → `scripts/publish-release.ps1`).
 
+### Доктор крашей (`src/main/diagnostics/`)
+
+- `jarScanner.ts` — читает jar модов (fabric.mod.json, quilt.mod.json, mods.toml, neoforge.mods.toml, jar-in-jar) и
+  пакеты классов; статическая проверка: не тот загрузчик, дубли id, нет зависимости, битый архив. `jarOfClass` /
+  `jarOfModId` связывают строку стектрейса с jar.
+- `crashAnalyzer.ts` — чистые правила `(ctx) => Problem[]`: сообщения Fabric/Quilt и Forge/NeoForge о зависимостях,
+  Java, память, JVM-аргументы, Vulkan, повреждённые файлы игры, битые конфиги, миксины, «Suspected Mods», стектрейс,
+  драйверы; `analyzeDisconnect` — причины отключения от сервера. Новое правило = функция в `RULES`.
+- `crashDoctor.ts` — сессия игры (строки stdout, адрес сервера), разбор после выхода (`latest.log` + crash-report +
+  `hs_err_pid*.log`), live-ловля фатальных ошибок загрузчика (Fabric держит окно ошибки, Forge — экран ошибки:
+  игра закрывается сама через 4 с), `preflight` перед запуском, `applyFixes` (исправления + перезапуск),
+  автопоиск виновника `startBisect` (запуски с половиной подозреваемых модов + их зависимости; моды всегда
+  возвращаются как были). События: `diagnosis`, `bisect`.
+
+### Графика (`minecraft/graphicsService.ts`)
+
+Версии с `net/minecraft/client/PreferredGraphicsApi.class` в jar (26.2+) получают `--graphicsBackend vulkan|opengl`
+(значения options.txt `preferredGraphicsBackend`: default/opengl/vulkan). `Settings.graphicsApi`: ask (UI спрашивает
+перед запуском), auto (драйвер Vulkan в реестре + не старая видеокарта), vulkan, opengl.
+
+### Режим разработчика (`dev/devService.ts`)
+
+`DevProfile` на сборку (userData/devprofiles.json): папка Gradle-проекта, задача, автокопирование (fs.watch на
+`build/libs`, в т.ч. подпроекты fabric/forge/neoforge), JDWP, mixin-флаги, quick play. `devLaunchArgs` добавляет
+аргументы JVM/игры только при `Settings.devMode`. Деплой заменяет прошлый скопированный jar (это копия артефакта
+сборки, не данные игрока).
+
 ## Точки расширения
 
 | Что добавить | Где |
@@ -170,7 +197,7 @@ src/renderer/src/
 | `@xmcl/core`, `@xmcl/installer`, `@xmcl/task` | разбор версий, запуск, установщики Minecraft/Forge/NeoForge/Fabric/Quilt/Java. **Версии закреплены**: installer 6.1.2 (в 6.3.x API переписан, а `@xmcl/unzip@2.2.0` опубликован с битой зависимостью `workspace:`) |
 | `undici` 6.21.3 | диспетчер загрузок для @xmcl (8 соединений, повторы). Закреплён через `overrides`: @xmcl 6.1.2 вызывает `throwOnError`, которого нет в undici 7 |
 | `skinview3d`, `three` 0.156.1 | 3D-модель игрока; `three` напрямую — raycast для рисования по модели (версия = та, что у skinview3d) |
-| `yauzl` | чтение pack.mcmeta из zip текстурпаков |
+| `yauzl` | чтение pack.mcmeta из zip текстурпаков, метаданных модов (Доктор крашей) и проверка jar версии на выбор графики |
 | `react`, `react-dom` | UI |
 | `@fontsource-variable/inter` | шрифт Inter с кириллицей офлайн |
 | `electron`, `electron-vite`, `electron-builder`, `vite`, `typescript` | сборка |

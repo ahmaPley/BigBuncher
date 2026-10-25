@@ -142,9 +142,26 @@ function NewsCard() {
 }
 
 function LogsModal({ onClose }: { onClose(): void }) {
-  const { logs } = useApp()
+  const { logs, selectedInstance, run, toast } = useApp()
   return (
     <Modal title="Консоль игры" onClose={onClose} width={860}>
+      {selectedInstance && (
+        <div className="row" style={{ marginBottom: 10 }}>
+          <span className="muted" style={{ fontSize: 13 }}>Вылетело или не пускает на сервер? Доктор прочитает логи и объяснит.</span>
+          <span className="spacer" />
+          <Button
+            size="sm"
+            icon="stethoscope"
+            onClick={async () => {
+              const d = await run(() => api.doctor.analyzeLastRun(selectedInstance.id))
+              if (d === null) toast('success', 'Краша не нашёл', 'Последний запуск завершился нормально')
+              else if (d) onClose()
+            }}
+          >
+            Доктор крашей
+          </Button>
+        </div>
+      )}
       <div className="log-view">
         {logs.map((l, i) => (
           <div key={i} className={l.stream === 'err' ? 'err' : /WARN/.test(l.line) ? 'warn' : ''}>

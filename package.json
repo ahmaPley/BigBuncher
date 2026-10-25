@@ -1,7 +1,7 @@
 {
   "name": "bigbuncher",
   "productName": "BigBuncher",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "description": "BigBuncher — Minecraft Java Edition launcher",
   "author": "TambiStudio",
   "main": "out/main/index.js",

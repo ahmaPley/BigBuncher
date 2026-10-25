@@ -1,7 +1,9 @@
 import { app, BrowserWindow, shell } from 'electron'
 import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { prepareSmokeTestPaths, runFeatureTest, runSmokeTest } from './devtools/smokeTest'
+import { prepareSmokeTestPaths, runDoctorTest, runFeatureTest, runSmokeTest } from './devtools/smokeTest'
+import { startDevWatchers } from './dev/devService'
+import { prepareTrailerPaths, runTrailer } from './devtools/trailer'
 import { registerIpcHandlers } from './ipc'
 import { scheduleUpdateChecks } from './updates/updateService'
 
@@ -57,7 +59,7 @@ function createMainWindow(): BrowserWindow {
 if (process.env.BIGBUNCHER_SMOKE) {
   prepareSmokeTestPaths()
   app.whenReady().then(() =>
-    (process.env.BIGBUNCHER_SMOKE === 'features' ? runFeatureTest() : runSmokeTest()).then(
+    (process.env.BIGBUNCHER_SMOKE === 'features' ? runFeatureTest() : process.env.BIGBUNCHER_SMOKE === 'doctor' ? runDoctorTest() : runSmokeTest()).then(
       () => app.exit(0),
       (err) => {
         console.error('[smoke] FAILED', err)
@@ -65,6 +67,16 @@ if (process.env.BIGBUNCHER_SMOKE) {
       }
     )
   )
+} else if (process.env.BIGBUNCHER_TRAILER) {
+  prepareTrailerPaths()
+  app.whenReady().then(async () => {
+    registerIpcHandlers()
+    const win = createMainWindow()
+    if (win.webContents.isLoading()) await new Promise<void>((r) => win.webContents.once('did-finish-load', () => r()))
+    console.log('[trailer] page loaded')
+    await runTrailer(win, process.env.BIGBUNCHER_TRAILER!).catch((err) => console.error('[trailer] FAILED', err))
+    app.exit(0)
+  })
 } else if (!process.env.BIGBUNCHER_CAPTURE && !app.requestSingleInstanceLock()) {
   app.quit()
 } else {
@@ -80,6 +92,7 @@ if (process.env.BIGBUNCHER_SMOKE) {
     app.setAppUserModelId('studio.tambi.bigbuncher')
     registerIpcHandlers()
     scheduleUpdateChecks()
+    startDevWatchers()
     createMainWindow()
   })
 

@@ -26,6 +26,17 @@ A Minecraft: Java Edition launcher for Windows. Electron + React + TypeScript.
 - Automatic Java download (official Mojang runtimes) or a custom Java.
 - RAM, Java, game folder, resolution and JVM argument settings, all persisted.
 - **Auto-update** through GitHub Releases: the launcher offers new versions itself.
+- **Crash Doctor** (1.2): after a crash it reads `latest.log`, the crash report and `hs_err`, explains the cause in plain
+  words and fixes it in one click, relaunching the game: installs a missing mod from Modrinth, updates or disables the
+  culprit (found via loader messages, mixin errors or the stack trace), raises RAM, restores automatic Java, resets a
+  broken config (to the Recycle Bin), switches Vulkan → OpenGL, repairs game files. It also watches server joins
+  (version mismatch, offline account on an online-mode server, mod mismatch), checks mods **before launch**
+  (duplicates, wrong loader, missing dependencies) and can **find the broken mod automatically** by bisection.
+- **Vulkan / OpenGL** for Minecraft 26.2+: asked on the first launch (or "I don't know — detect it": checks the
+  Vulkan driver and GPU), passed to the game as `--graphicsBackend`.
+- **Mod developer mode** (enable in settings): link a Gradle project to an instance, "Build and run", auto-copy of the
+  new jar from `build/libs`, JDWP debugger (port 5005, HotSwap), mixin export / verbose log, quick play into a world or
+  server, console with filters and "Explain error", mod inspector.
 
 The UI is in Russian.
 
@@ -58,6 +69,8 @@ Checks:
 BIGBUNCHER_SMOKE=1 BIGBUNCHER_SMOKE_LOADERS=fabric,forge,neoforge,quilt BIGBUNCHER_SMOKE_LAUNCH=fabric npx electron .
 # multi-packs, resource packs, update check (no game launch)
 BIGBUNCHER_SMOKE=features npx electron .
+# crash doctor: known-error rules + a real broken Fabric pack fixed in one click
+BIGBUNCHER_SMOKE=doctor npx electron .
 # screenshot of a page (#skins/new opens the skin editor)
 BIGBUNCHER_PAGE=skins BIGBUNCHER_CAPTURE=shot.png npx electron .
 ```

@@ -5,7 +5,7 @@ import { Icon } from './Icon'
 
 /** The big green button: install / play / stop depending on state. */
 export function PlayButton() {
-  const { selectedInstance, game, tasks, navigate, run, selectedAccount, setAccountsOpen } = useApp()
+  const { selectedInstance, game, tasks, navigate, run, launch, selectedAccount, setAccountsOpen, bisect } = useApp()
   const [starting, setStarting] = useState(false)
 
   const busyTask = tasks.find((t) => t.status === 'running' && selectedInstance && t.instanceId === selectedInstance.id)
@@ -19,7 +19,7 @@ export function PlayButton() {
       return
     }
     setStarting(true)
-    await run(() => api.game.launch(selectedInstance!.id))
+    await launch(selectedInstance!.id)
     setStarting(false)
   }
 
@@ -33,7 +33,7 @@ export function PlayButton() {
     action = async () => void (await run(() => api.game.stop()))
   }
 
-  const busy = starting || Boolean(busyTask)
+  const busy = starting || Boolean(busyTask) || Boolean(bisect?.running)
   const progress = busyTask && busyTask.progress >= 0 ? busyTask.progress : undefined
 
   return (

@@ -17,7 +17,10 @@ function defaults(): Settings {
     afterLaunch: 'minimize',
     background: 'sunset',
     showSnapshots: false,
-    curseforgeApiKey: ''
+    curseforgeApiKey: '',
+    preflightCheck: true,
+    devMode: false,
+    graphicsApi: 'ask'
   }
 }
 

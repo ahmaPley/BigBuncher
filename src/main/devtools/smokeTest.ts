@@ -190,6 +190,102 @@ export async function runFeatureTest(): Promise<void> {
   log('FEATURE TEST PASSED')
 }
 
+/**
+ * Доктор крашей: analyzer checks on known log lines, then a real broken Fabric pack
+ * (Mod Menu without Fabric API) that must be caught before launch, crash, get fixed on one click and start.
+ * Run:  BIGBUNCHER_SMOKE=doctor npx electron .
+ */
+export async function runDoctorTest(): Promise<void> {
+  const { updateSettings } = await import('../settings/settingsService')
+  const { addOfflineAccount } = await import('../auth/accountService')
+  const { createInstance, getInstance } = await import('../instances/instanceService')
+  const { analyzeCrash, analyzeDisconnect } = await import('../diagnostics/crashAnalyzer')
+  const doctor = await import('../diagnostics/crashDoctor')
+  const { launchInstance, stopGame } = await import('../minecraft/launchService')
+  const { onAppEvent } = await import('../core/events')
+  const { fetchJson, downloadFile } = await import('../core/http')
+  const log = (...a: unknown[]): void => console.log('[doctor]', ...a)
+  const assert = (ok: unknown, msg: string): void => {
+    if (!ok) throw new Error(`ASSERT: ${msg}`)
+    log('ok -', msg)
+  }
+
+  updateSettings({ gameDir: process.env.BIGBUNCHER_SMOKE_GAMEDIR, afterLaunch: 'keep' })
+  addOfflineAccount('DoctorTester')
+  const { listLoaderVersions } = await import('../minecraft/versionService')
+  const fabricVersions = await listLoaderVersions('fabric', '1.21.1')
+  const loaderVersion = (fabricVersions.find((v) => v.stable) ?? fabricVersions[0]).version
+  const inst = await createInstance({ name: 'doctor-fabric', icon: 'grass', mcVersion: '1.21.1', loader: 'fabric', loaderVersion })
+
+  // --- analyzer on known messages ---
+  const base = { instance: getInstance(inst.id), jars: [], maxRamMb: 2048, totalRamMb: 16384, customJava: false, jvmArgs: '' }
+  const titles = (log: string, extra = {}): string[] => analyzeCrash({ ...base, log, ...extra }).map((p) => p.title)
+  assert(titles(" - Mod 'Mod Menu' (modmenu) 11.0.3 requires version 0.100.1 or later of mod 'Fabric API' (fabric-api), which is missing!")[0] === 'Не хватает мода «Fabric API»', 'fabric missing dependency')
+  assert(titles("\tMod ID: 'geckolib', Requested by: 'mowziesmobs', Expected range: '[4.4.9,)', Actual version: '[MISSING]'")[0] === 'Не хватает мода «GeckoLib»', 'forge missing dependency')
+  assert(titles('java.lang.OutOfMemoryError: Java heap space')[0] === 'Игре не хватило памяти', 'out of memory')
+  assert(titles('Failed to create backend VULKAN: VK_ERROR_INCOMPATIBLE_DRIVER')[0] === 'Видеокарта не тянет Vulkan', 'vulkan failure')
+  assert(titles('[main/ERROR]: Failed loading config file sodium-options.json ParsingException at C:\\x\\instances\\a\\config\\sodium-options.json').length > 0, 'broken config')
+  const dis = (r: string, online = false): string => analyzeDisconnect(r, base, online)[0].title
+  assert(dis('Outdated client! Please use 1.21.4') === 'Сервер на другой версии (1.21.4)', 'server version mismatch')
+  assert(dis('multiplayer.disconnect.unverified_username') === 'Сервер пускает только лицензию', 'offline account on licensed server')
+  assert(dis('Mismatched mod channel list: missing [create, flywheel]') === 'Моды не совпадают с сервером', 'mod mismatch on server')
+
+  // --- real broken pack: a mod that needs Fabric API, without Fabric API ---
+  type MrVersion = { files: { url: string; filename: string; primary: boolean }[]; dependencies: { project_id?: string; dependency_type: string }[] }
+  let file: MrVersion['files'][number] | undefined
+  for (const slug of ['jade', 'appleskin', 'continuity', 'emi']) {
+    const versions = await fetchJson<MrVersion[]>(
+      `https://api.modrinth.com/v2/project/${slug}/version?loaders=${encodeURIComponent('["fabric"]')}&game_versions=${encodeURIComponent('["1.21.1"]')}`
+    )
+    // P7dR8mSH = Fabric API on Modrinth
+    if (versions[0]?.dependencies.some((dep) => dep.project_id === 'P7dR8mSH' && dep.dependency_type === 'required')) {
+      file = versions[0].files.find((f) => f.primary) ?? versions[0].files[0]
+      log('test mod:', slug, file.filename)
+      break
+    }
+  }
+  if (!file) throw new Error('no test mod that requires Fabric API')
+  await downloadFile(file.url, join(instanceDir(inst.id), 'mods', file.filename))
+  const pre = await doctor.preflight(inst.id)
+  assert(pre?.problems.some((p) => p.title === 'Не хватает мода «Fabric API»'), `preflight caught missing Fabric API (${pre?.problems.map((p) => p.title)})`)
+
+  const nextDiagnosis = (): Promise<import('../../shared/types').Diagnosis> =>
+    new Promise((resolve) => {
+      const off = onAppEvent((event, payload) => {
+        if (event === 'diagnosis') {
+          off()
+          resolve(payload as import('../../shared/types').Diagnosis)
+        }
+      })
+    })
+  const crashed = nextDiagnosis()
+  assert((await launchInstance(inst.id)) === 'blocked', 'launch blocked by preflight')
+  await launchInstance(inst.id, { skipPreflight: true })
+  const d = await crashed.then(() => nextDiagnosis())
+  log('crash diagnosis:', d.headline, d.problems.map((p) => p.title))
+  const fix = d.problems.find((p) => p.title === 'Не хватает мода «Fabric API»')
+  assert(fix && fix.fixes[0].action.kind === 'installMod', 'crash explained with one-click install of Fabric API')
+
+  const ready = new Promise<void>((resolve, reject) => {
+    const timeout = setTimeout(() => reject(new Error('fixed game did not load in 6 minutes')), 6 * 60_000)
+    onAppEvent((event, payload) => {
+      if (event === 'gameLog' && /Sound engine started/.test((payload as { line: string }).line)) {
+        clearTimeout(timeout)
+        resolve()
+      }
+      if (event === 'diagnosis') reject(new Error(`still crashing: ${(payload as { headline: string }).headline}`))
+    })
+  })
+  const res = await doctor.applyFixes(d.id, [fix!.fixes[0].action], true)
+  log('fix result:', res)
+  assert(res.done.length === 1 && res.relaunched, 'fix applied and game relaunched')
+  await ready
+  log('fixed game reached the main menu')
+  stopGame()
+  await new Promise((r) => setTimeout(r, 3000))
+  log('DOCTOR TEST PASSED')
+}
+
 /** zip containing pack.mcmeta = {"pack":{"pack_format":15,"description":"BigBuncher test"}} */
 const TEST_PACK_ZIP_BASE64 =
   'UEsDBBQAAAAAAAAAAADvrz7hOwAAADsAAAALAAAAcGFjay5tY21ldGF7InBhY2siOnsicGFja19mb3JtYXQiOjE1LCJkZXNjcmlwdGlvbiI6IkJpZ0J1bmNoZXIgdGVzdCJ9fVBLAQIUABQAAAAAAAAAAADvrz7hOwAAADsAAAALAAAAAAAAAAAAAAAAAAAAAABwYWNrLm1jbWV0YVBLBQYAAAAAAQABADkAAABkAAAAAAA='

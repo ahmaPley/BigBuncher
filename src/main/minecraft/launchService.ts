@@ -11,6 +11,9 @@ import { getInstance, installInstance, isInstanceBusy, patchInstance } from '../
 import { getSettings } from '../settings/settingsService'
 import { syncSharedPacksIntoInstance } from '../resourcepacks/resourcePackService'
 import { prepareSkinInjection } from '../skins/skinService'
+import { devLaunchArgs } from '../dev/devService'
+import { preflight, sessionEnded, sessionLine, sessionStarted } from '../diagnostics/crashDoctor'
+import { graphicsArgs } from './graphicsService'
 import { ensureJava, javaRequirementOf } from './javaService'
 
 let current: { process: ChildProcess; instanceId: string } | undefined
@@ -21,7 +24,13 @@ export function getGameState(): GameState {
     : { running: false }
 }
 
-export async function launchInstance(instanceId: string): Promise<void> {
+export interface LaunchOptions {
+  /** Skip the mod check before launch (the player chose "launch anyway", or the culprit search runs). */
+  skipPreflight?: boolean
+}
+
+/** Launches the instance. Resolves 'blocked' when the pre-launch check found problems (a diagnosis was emitted). */
+export async function launchInstance(instanceId: string, opts: LaunchOptions = {}): Promise<'started' | 'blocked'> {
   if (current) throw new Error('Игра уже запущена')
   if (isInstanceBusy(instanceId)) throw new Error('Сборка ещё устанавливается')
 
@@ -29,8 +38,11 @@ export async function launchInstance(instanceId: string): Promise<void> {
   const account = settings.selectedAccountId ? findAccount(settings.selectedAccountId) : undefined
   if (!account) throw new Error('Добавьте аккаунт: офлайн-ник или вход через Microsoft')
 
+  if (settings.preflightCheck && !opts.skipPreflight && (await preflight(instanceId))) return 'blocked'
+
   if (!getInstance(instanceId).installed) await installInstance(instanceId)
   const instance = getInstance(instanceId)
+  const dev = devLaunchArgs(instanceId)
 
   const options = await runTask(`Запуск «${instance.name}»`, async (report): Promise<LaunchOption> => {
     report.update(-1, 'Проверка Java')
@@ -41,6 +53,8 @@ export async function launchInstance(instanceId: string): Promise<void> {
     const skin = await prepareSkinInjection(account)
     report.update(-1, 'Общие текстурпаки')
     syncSharedPacksIntoInstance(instance.id)
+    report.update(-1, 'Графика')
+    const graphics = await graphicsArgs(instance.mcVersion)
 
     const gamePath = instanceDir(instance.id)
     mkdirSync(gamePath, { recursive: true })
@@ -60,7 +74,8 @@ export async function launchInstance(instanceId: string): Promise<void> {
       resolution: settings.resolution.fullscreen
         ? { fullscreen: true }
         : { width: settings.resolution.width, height: settings.resolution.height },
-      extraJVMArgs: settings.jvmArgs.split(/\s+/).filter(Boolean),
+      extraJVMArgs: [...settings.jvmArgs.split(/\s+/).filter(Boolean), ...dev.jvm],
+      extraMCArgs: [...graphics, ...dev.game],
       yggdrasilAgent: skin,
       extraExecOption: { detached: false, windowsHide: true }
     }
@@ -69,11 +84,14 @@ export async function launchInstance(instanceId: string): Promise<void> {
   const child = await launch(options)
   current = { process: child, instanceId }
   patchInstance(instanceId, { lastPlayedAt: Date.now() })
+  sessionStarted(instanceId)
   emit('game', getGameState())
 
   const forward = (stream: 'out' | 'err') => (chunk: Buffer) => {
     for (const line of chunk.toString().split(/\r?\n/)) {
-      if (line.trim()) emit('gameLog', { instanceId, line, stream })
+      if (!line.trim()) continue
+      sessionLine(line)
+      emit('gameLog', { instanceId, line, stream })
     }
   }
   child.stdout?.on('data', forward('out'))
@@ -91,8 +109,11 @@ export async function launchInstance(instanceId: string): Promise<void> {
       if (crashReport) emit('gameLog', { instanceId, line: crashReport.slice(0, 4000), stream: 'err' })
       BrowserWindow.getAllWindows().forEach((w) => w.restore())
     }
+    // Доктор крашей: explains what went wrong (also for loader errors that exit with code 0)
+    void sessionEnded(instanceId, code, crashReport)
   })
   watcher.on('error', (err) => emit('gameLog', { instanceId, line: String(err), stream: 'err' }))
+  return 'started'
 }
 
 export function stopGame(): void {

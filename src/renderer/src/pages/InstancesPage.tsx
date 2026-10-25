@@ -121,7 +121,7 @@ const loaderChip = (i: Instance) => (
 
 /** Buttons shared by single instances and the active state of a multi-pack. */
 function InstanceActions({ instance, onDialog, extra }: { instance: Instance; onDialog(d: Dialog): void; extra?: React.ReactNode }) {
-  const { run, navigate } = useApp()
+  const { run, navigate, launch, toast } = useApp()
   const { task, busy } = useInstanceStatus(instance)
   return (
     <div className="row" style={{ gap: 6 }}>
@@ -132,7 +132,7 @@ function InstanceActions({ instance, onDialog, extra }: { instance: Instance; on
         disabled={busy}
         onClick={() => {
           void run(() => api.instances.select(instance.id))
-          void run(() => api.game.launch(instance.id))
+          void launch(instance.id)
         }}
       >
         Играть
@@ -141,6 +141,16 @@ function InstanceActions({ instance, onDialog, extra }: { instance: Instance; on
       {extra}
       <Button size="sm" icon="puzzle" iconOnly title="Моды" onClick={() => void api.instances.select(instance.id).then(() => navigate('mods'))} />
       <Button size="sm" icon="folder" iconOnly title="Открыть папку" onClick={() => void run(() => api.instances.openFolder(instance.id))} />
+      <Button
+        size="sm"
+        icon="stethoscope"
+        iconOnly
+        title="Доктор крашей: проверить моды и последний запуск"
+        onClick={async () => {
+          const d = (await run(() => api.doctor.analyzeLastRun(instance.id))) ?? (await run(() => api.doctor.preflight(instance.id)))
+          if (d === null) toast('success', 'Проблем не нашёл', 'Моды в порядке, последний запуск без краша')
+        }}
+      />
       <Button size="sm" icon="pencil" iconOnly title="Переименовать" onClick={() => onDialog({ kind: 'rename', instance })} />
       <Button
         size="sm"

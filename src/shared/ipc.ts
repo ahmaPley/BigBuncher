@@ -12,6 +12,15 @@
  */
 import type {
   Account,
+  BisectState,
+  DevLogLine,
+  DevProfile,
+  DevProjectInfo,
+  Diagnosis,
+  FixAction,
+  FixResult,
+  GraphicsInfo,
+  ModJarInfo,
   GameLogLine,
   GameState,
   Instance,
@@ -76,7 +85,8 @@ export interface BigBuncherApi {
     select(id: string): Promise<void>
   }
   game: {
-    launch(instanceId: string): Promise<void>
+    /** 'blocked' = the pre-launch check found problems and sent a `diagnosis` event instead. */
+    launch(instanceId: string, opts?: { skipPreflight?: boolean }): Promise<'started' | 'blocked'>
     stop(): Promise<void>
     state(): Promise<GameState>
   }
@@ -131,6 +141,36 @@ export interface BigBuncherApi {
   news: {
     latest(): Promise<NewsItem[]>
   }
+  doctor: {
+    last(instanceId: string): Promise<Diagnosis | null>
+    /** Re-reads logs/ and crash-reports/ of the last run. */
+    analyzeLastRun(instanceId: string): Promise<Diagnosis | null>
+    analyzeText(instanceId: string, text: string): Promise<Diagnosis>
+    preflight(instanceId: string): Promise<Diagnosis | null>
+    applyFixes(diagnosisId: string, actions: FixAction[], relaunch: boolean): Promise<FixResult>
+    startBisect(instanceId: string): Promise<void>
+    cancelBisect(): Promise<void>
+    bisectState(): Promise<BisectState | null>
+  }
+  graphics: {
+    detect(): Promise<GraphicsInfo>
+    /** Does this instance's Minecraft version have the Vulkan/OpenGL switch? */
+    hasChoice(instanceId: string): Promise<boolean>
+  }
+  dev: {
+    getProfile(instanceId: string): Promise<DevProfile>
+    saveProfile(instanceId: string, patch: Partial<DevProfile>): Promise<DevProfile>
+    pickProject(instanceId: string): Promise<DevProfile>
+    inspectProject(dir: string): Promise<DevProjectInfo>
+    build(instanceId: string): Promise<void>
+    cancelBuild(): Promise<void>
+    deploy(instanceId: string): Promise<DevProfile>
+    buildAndRun(instanceId: string): Promise<void>
+    restart(instanceId: string): Promise<void>
+    inspectMods(instanceId: string): Promise<ModJarInfo[]>
+    listWorlds(instanceId: string): Promise<string[]>
+    openFolder(instanceId: string, which: 'mods' | 'config' | 'logs' | 'crash-reports' | 'mixin' | 'project'): Promise<void>
+  }
   tasks: {
     list(): Promise<TaskState[]>
   }
@@ -152,6 +192,9 @@ export const API_METHODS: MethodNames<BigBuncherApi> = {
   multipacks: ['list', 'create', 'addState', 'switchState', 'rename', 'renameState', 'removeState', 'dissolve'],
   updates: ['info', 'check', 'download', 'install'],
   news: ['latest'],
+  doctor: ['last', 'analyzeLastRun', 'analyzeText', 'preflight', 'applyFixes', 'startBisect', 'cancelBisect', 'bisectState'],
+  graphics: ['detect', 'hasChoice'],
+  dev: ['getProfile', 'saveProfile', 'pickProject', 'inspectProject', 'build', 'cancelBuild', 'deploy', 'buildAndRun', 'restart', 'inspectMods', 'listWorlds', 'openFolder'],
   tasks: ['list']
 }
 
@@ -165,6 +208,9 @@ export interface AppEvents {
   settingsChanged: Settings
   multiPacksChanged: MultiPack[]
   update: UpdateInfo
+  diagnosis: Diagnosis
+  bisect: BisectState
+  devLog: DevLogLine
 }
 
 export type AppEventName = keyof AppEvents

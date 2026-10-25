@@ -1,5 +1,7 @@
 import type { ComponentType } from 'react'
 import { AccountsModal } from './components/AccountsModal'
+import { BisectBanner, DoctorModal, GraphicsModal } from './components/Doctor'
+import { DevPage } from './pages/DevPage'
 import { Sidebar } from './components/Sidebar'
 import { TitleBar } from './components/TitleBar'
 import { Toasts } from './components/Toasts'
@@ -20,6 +22,7 @@ const PAGES: Record<PageId, ComponentType> = {
   mods: ModsPage,
   packs: ResourcePacksPage,
   skins: SkinsPage,
+  dev: DevPage,
   settings: SettingsPage
 }
 
@@ -35,6 +38,9 @@ export function App() {
         {settings ? <Page key={page} /> : <div className="page" />}
       </main>
       {accountsOpen && <AccountsModal />}
+      <DoctorModal />
+      <GraphicsModal />
+      <BisectBanner />
       <Toasts />
     </div>
   )
