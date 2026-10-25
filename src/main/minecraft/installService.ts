@@ -6,6 +6,7 @@ import { gameDir } from '../core/paths'
 import type { TaskReporter } from '../core/tasks'
 import { getLoader } from '../loaders'
 import { runXmclTask } from '../loaders/taskProgress'
+import { isCorruptArchiveError, removeCorruptJars } from './jarIntegrity'
 import { ensureJava, javaRequirementOf } from './javaService'
 import { findMinecraftVersion } from './versionService'
 
@@ -31,28 +32,51 @@ export async function installInstanceVersion(instance: Instance, report: TaskRep
 
   const javaPath = await ensureJava(await javaRequirementOf(instance.mcVersion), report)
 
+  // Broken jars from an interrupted earlier download (e.g. the Forge installer) are cleaned up
+  // before every retry, so the next attempt downloads them again instead of failing the same way.
+  let lastError: unknown
+  const cleanBeforeRetry = async (attempt: number): Promise<void> => {
+    if (attempt === 1 || !isCorruptArchiveError(lastError)) return
+    report.update(-1, 'Проверка скачанных файлов')
+    await removeCorruptJars([folder.libraries, folder.versions], Date.now() - 7 * 24 * 3600_000)
+  }
+  const remember = async <T,>(work: () => Promise<T>): Promise<T> => {
+    try {
+      return await work()
+    } catch (err) {
+      lastError = err
+      throw err
+    }
+  }
+
   let versionId = instance.mcVersion
   if (instance.loader !== 'vanilla') {
     if (!instance.loaderVersion) throw new Error('Не выбрана версия загрузчика')
     const loader = getLoader(instance.loader)
-    versionId = await withRetries(ATTEMPTS, () =>
-      loader.install({
-        folder,
-        mcVersion: instance.mcVersion,
-        loaderVersion: instance.loaderVersion!,
-        javaPath,
-        report
-      })
-    )
+    versionId = await withRetries(ATTEMPTS, async (attempt) => {
+      await cleanBeforeRetry(attempt)
+      return remember(() =>
+        loader.install({
+          folder,
+          mcVersion: instance.mcVersion,
+          loaderVersion: instance.loaderVersion!,
+          javaPath,
+          report
+        })
+      )
+    })
   }
 
   const resolved = await Version.parse(folder, versionId)
-  await withRetries(ATTEMPTS, (attempt) =>
-    runXmclTask(
+  await withRetries(ATTEMPTS, async (attempt) => {
+    await cleanBeforeRetry(attempt)
+    return remember(() =>
+      runXmclTask(
       installDependenciesTask(resolved, downloadOptions),
       report,
       attempt === 1 ? 'Библиотеки и ресурсы' : `Докачка файлов (попытка ${attempt})`
+      )
     )
-  )
+  })
   return { versionId, javaPath }
 }
