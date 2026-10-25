@@ -1,3 +1,4 @@
+import { L } from '../core/i18n'
 import { app, dialog, shell } from 'electron'
 import { spawn, type ChildProcess } from 'node:child_process'
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, watch, type FSWatcher } from 'node:fs'
@@ -100,7 +101,7 @@ function builtJars(root: string, prefix = ''): DevProjectInfo['jars'] {
 }
 
 export async function pickProject(instanceId: string): Promise<DevProfile> {
-  const picked = await dialog.showOpenDialog({ title: 'Папка проекта мода (где build.gradle)', properties: ['openDirectory'] })
+  const picked = await dialog.showOpenDialog({ title: L('Папка проекта мода (где build.gradle)'), properties: ['openDirectory'] })
   const dir = picked.filePaths[0]
   if (!dir) return getProfile(instanceId)
   const info = inspectProject(dir)

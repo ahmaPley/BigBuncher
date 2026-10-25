@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import type { Account, BisectState, DevLogLine, Diagnosis, GameLogLine, GameState, Instance, LoaderId, MultiPack, Settings, SkinEntry, TaskState, UpdateInfo } from '../../../shared/types'
 import { api } from './api'
 import { errorText } from './format'
+import { applyLanguage } from './i18nDom'
 
 export type PageId = 'home' | 'install' | 'instances' | 'mods' | 'packs' | 'skins' | 'dev' | 'settings'
 
@@ -106,6 +107,10 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   )
 
   const refreshSkins = useCallback(async () => setSkins(await api.skins.list()), [])
+
+  useEffect(() => {
+    if (settings && applyLanguage(settings.language)) location.reload()
+  }, [settings?.language])
 
   // Hook for the trailer recorder (src/main/devtools/trailer.ts) to drive the UI.
   useEffect(() => {

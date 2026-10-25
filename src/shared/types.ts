@@ -81,6 +81,8 @@ export interface Settings {
    * auto = the launcher checks the PC, vulkan / opengl = forced via --graphicsBackend.
    */
   graphicsApi: GraphicsApiChoice
+  /** Interface language: English by default, Russian can be switched on in settings. */
+  language: 'en' | 'ru'
 }
 
 export type GraphicsApiChoice = 'ask' | 'auto' | 'vulkan' | 'opengl'

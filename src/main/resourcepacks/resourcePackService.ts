@@ -1,3 +1,4 @@
+import { L } from '../core/i18n'
 import { dialog, shell } from 'electron'
 import { copyFileSync, existsSync, linkSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { basename, join } from 'node:path'
@@ -50,7 +51,7 @@ async function listDir(dir: string, shared: boolean, exclude: string[] = []): Pr
 async function pickPacks(title: string): Promise<string[]> {
   const res = await dialog.showOpenDialog({
     title,
-    filters: [{ name: 'Текстурпаки (.zip)', extensions: ['zip'] }],
+    filters: [{ name: L('Текстурпаки (.zip)'), extensions: ['zip'] }],
     properties: ['openFile', 'multiSelections']
   })
   return res.canceled ? [] : res.filePaths

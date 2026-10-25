@@ -1,3 +1,4 @@
+import { L } from '../core/i18n'
 import { dialog } from 'electron'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -13,8 +14,8 @@ export { listSkins, removeSkin } from './skinLibrary'
 
 export async function importSkinFromFile(): Promise<SkinEntry | null> {
   const picked = await dialog.showOpenDialog({
-    title: 'Выберите файл скина',
-    filters: [{ name: 'PNG скин', extensions: ['png'] }],
+    title: L('Выберите файл скина'),
+    filters: [{ name: L('PNG скин'), extensions: ['png'] }],
     properties: ['openFile']
   })
   if (picked.canceled || !picked.filePaths[0]) return null
@@ -56,7 +57,7 @@ export async function exportSkinToFile(id: string): Promise<boolean> {
   const png = readSkinPng(id)
   if (!png) throw new Error('Скин не найден')
   const target = await dialog.showSaveDialog({
-    title: 'Сохранить скин',
+    title: L('Сохранить скин'),
     defaultPath: `${getSkinMeta(id)?.name ?? 'skin'}.png`,
     filters: [{ name: 'PNG', extensions: ['png'] }]
   })

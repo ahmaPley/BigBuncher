@@ -20,7 +20,8 @@ function defaults(): Settings {
     curseforgeApiKey: '',
     preflightCheck: true,
     devMode: false,
-    graphicsApi: 'ask'
+    graphicsApi: 'ask',
+    language: 'en'
   }
 }
 
@@ -45,6 +46,7 @@ function sanitize(s: Settings): Settings {
   return {
     ...s,
     gameDir: s.gameDir.trim() || defaults().gameDir,
+    language: s.language === 'ru' ? 'ru' : 'en',
     maxRamMb,
     minRamMb: clamp(Math.round(s.minRamMb), 256, maxRamMb),
     resolution: {

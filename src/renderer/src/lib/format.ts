@@ -1,3 +1,5 @@
+import { locale } from './i18nDom'
+
 export function formatCount(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1).replace(/\.0$/, '')} млн`
   if (n >= 1_000) return `${(n / 1_000).toFixed(1).replace(/\.0$/, '')} тыс`
@@ -10,7 +12,7 @@ export function formatSize(bytes: number): string {
 }
 
 export function formatDate(iso: string | number): string {
-  return new Date(iso).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })
+  return new Date(iso).toLocaleDateString(locale(), { day: 'numeric', month: 'long', year: 'numeric' })
 }
 
 export function formatRam(mb: number): string {

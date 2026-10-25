@@ -336,7 +336,7 @@ function DevConsole({
         {tab === 'gradle' && <Button size="sm" variant="ghost" icon="trash" iconOnly title="Очистить" onClick={onClearDev} />}
       </div>
       <div className="log-view dev-log" ref={box}>
-        {lines.length === 0 && <div className="dim">{tab === 'game' ? 'Запусти игру — лог появится здесь.' : 'Нажми «Собрать» — вывод Gradle появится здесь.'}</div>}
+        {lines.length === 0 && <div className="dim log-hint">{tab === 'game' ? 'Запусти игру — лог появится здесь.' : 'Нажми «Собрать» — вывод Gradle появится здесь.'}</div>}
         {lines.slice(-1500).map((l, i) => (
           <div key={i} className={l.level === 'error' ? 'err' : l.level === 'warn' ? 'warn' : ''}>
             {l.line}

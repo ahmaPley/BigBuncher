@@ -7,6 +7,7 @@ import type { BisectState, Diagnosis, FixAction, FixResult, Instance, ModJarInfo
 import { findAccount } from '../auth/accountService'
 import { emit, onAppEvent } from '../core/events'
 import { fetchJson } from '../core/http'
+import { L } from '../core/i18n'
 import { instanceDir } from '../core/paths'
 import { describeError } from '../core/tasks'
 import { createInstance, getInstance, installInstance } from '../instances/instanceService'
@@ -156,7 +157,7 @@ function notify(d: Diagnosis): void {
   const win = BrowserWindow.getAllWindows()[0]
   if (win && !win.isMinimized() && win.isFocused()) return
   if (!Notification.isSupported()) return
-  const n = new Notification({ title: `BigBuncher: ${d.headline}`, body: `${d.problems[0]?.title ?? ''} — открой лаунчер, там решение в 1 клик` })
+  const n = new Notification({ title: `BigBuncher: ${L(d.headline)}`, body: L(`${d.problems[0]?.title ?? ''} — открой лаунчер, там решение в 1 клик`) })
   n.on('click', () => {
     win?.restore()
     win?.focus()

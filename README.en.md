@@ -38,7 +38,7 @@ A Minecraft: Java Edition launcher for Windows. Electron + React + TypeScript.
   new jar from `build/libs`, JDWP debugger (port 5005, HotSwap), mixin export / verbose log, quick play into a world or
   server, console with filters and "Explain error", mod inspector.
 
-The UI is in Russian.
+The UI is in English by default; Russian can be switched on in Settings → Interface language.
 
 ## Download
 

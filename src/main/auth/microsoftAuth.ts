@@ -1,3 +1,4 @@
+import { L } from '../core/i18n'
 import { BrowserWindow, session } from 'electron'
 import { randomUUID } from 'node:crypto'
 import { fetchJson, HttpError, postJson } from '../core/http'
@@ -40,7 +41,7 @@ function requestAuthCode(): Promise<string> {
     const win = new BrowserWindow({
       width: 520,
       height: 680,
-      title: 'Вход в Microsoft',
+      title: L('Вход в Microsoft'),
       autoHideMenuBar: true,
       backgroundColor: '#11161d',
       webPreferences: { session: session.fromPartition(`msauth-${randomUUID()}`) }

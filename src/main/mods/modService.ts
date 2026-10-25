@@ -1,3 +1,4 @@
+import { L } from '../core/i18n'
 import { dialog, shell } from 'electron'
 import { copyFileSync, existsSync, mkdirSync, readdirSync, renameSync, rmSync, statSync } from 'node:fs'
 import { basename, join } from 'node:path'
@@ -140,8 +141,8 @@ export function removeMod(instanceId: string, fileName: string): InstalledMod[] 
 export async function addModsFromFiles(instanceId: string): Promise<InstalledMod[]> {
   moddableInstance(instanceId)
   const picked = await dialog.showOpenDialog({
-    title: 'Добавить моды',
-    filters: [{ name: 'Моды Minecraft', extensions: ['jar'] }],
+    title: L('Добавить моды'),
+    filters: [{ name: L('Моды Minecraft'), extensions: ['jar'] }],
     properties: ['openFile', 'multiSelections']
   })
   mkdirSync(modsDir(instanceId), { recursive: true })

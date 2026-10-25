@@ -29,13 +29,13 @@ export async function runTrailer(win: BrowserWindow, outDir: string): Promise<vo
   mkdirSync(outDir, { recursive: true })
   const realGame = join(app.getPath('appData'), '.bigbuncher')
   const game = mkdtempSync(join(tmpdir(), 'bigbuncher-trailer-game-'))
-  updateSettings({ gameDir: game, graphicsApi: 'ask', devMode: true, background: 'sunset', afterLaunch: 'keep' })
+  updateSettings({ gameDir: game, graphicsApi: 'ask', devMode: true, language: 'en', background: 'sunset', afterLaunch: 'keep' })
   addOfflineAccount('Ahmad')
   const now = Date.now()
   const base = { versionId: '1.21.1', installed: true, createdAt: now }
-  addInstanceRecord({ ...base, id: 'trl-shama', name: 'ШАМА 26.4', icon: 'grass', mcVersion: '26.4', loader: 'vanilla', lastPlayedAt: now - 5000 })
-  addInstanceRecord({ ...base, id: 'trl-create', name: 'Create: Индустрия', icon: 'furnace', mcVersion: '1.21.1', loader: 'neoforge', loaderVersion: '21.1.264', lastPlayedAt: now - 4000 })
-  const pack = addInstanceRecord({ ...base, id: 'trl-pack', name: 'Мой модпак', icon: 'crafting', mcVersion: '1.21.1', loader: 'fabric', loaderVersion: '0.16.14', lastPlayedAt: now })
+  addInstanceRecord({ ...base, id: 'trl-shama', name: 'Survival 26.4', icon: 'grass', mcVersion: '26.4', loader: 'vanilla', lastPlayedAt: now - 5000 })
+  addInstanceRecord({ ...base, id: 'trl-create', name: 'Create: Industry', icon: 'furnace', mcVersion: '1.21.1', loader: 'neoforge', loaderVersion: '21.1.264', lastPlayedAt: now - 4000 })
+  const pack = addInstanceRecord({ ...base, id: 'trl-pack', name: 'My modpack', icon: 'crafting', mcVersion: '1.21.1', loader: 'fabric', loaderVersion: '0.16.14', lastPlayedAt: now })
   updateSettings({ selectedInstanceId: pack.id })
 
   // Real Fabric jars from the player's instances (copied, read-only) make the mod inspector look real.
@@ -91,6 +91,11 @@ export async function runTrailer(win: BrowserWindow, outDir: string): Promise<vo
   const marks: { scene: string; t: number }[] = []
   const mark = (scene: string): void => {
     console.log('[trailer] scene', scene)
+    // report UI text the English dictionary missed (from the previous scene)
+    void js(String.raw`[...new Set(document.body.innerText.split('\n').filter((l) => /[\u0400-\u04FF]/.test(l)))].join(' | ')`).then(
+      (t) => t && console.log('[trailer] untranslated:', t),
+      () => undefined
+    )
     marks.push({ scene, t: (Date.now() - t0) / 1000 })
   }
   const nav = (page: string): Promise<unknown> => js(`window.__bb.navigate(${JSON.stringify(page)})`)
@@ -133,7 +138,7 @@ export async function runTrailer(win: BrowserWindow, outDir: string): Promise<vo
     await sleep(3800)
     await click('.doctor-evidence .link-btn')
     await sleep(1800)
-    await click('.modal .btn.primary', 'Исправить и запустить')
+    await click('.modal .btn.primary', 'Fix and launch')
     for (let i = 0; i < 40 && !(await js('Boolean(document.querySelector(".doctor-result"))')); i++) await sleep(250)
     await sleep(3200)
     await js('window.__bb.setDiagnosis(undefined)')
@@ -172,7 +177,7 @@ export async function runTrailer(win: BrowserWindow, outDir: string): Promise<vo
     mark('dev')
     await nav('dev')
     await sleep(600)
-    await click('.dev-page .btn', 'Проверить моды') // jar scan takes a few seconds — start it early
+    await click('.dev-page .btn', 'Check mods') // jar scan takes a few seconds — start it early
     await sleep(1200)
     // the page itself is the scroller (.page { overflow-y: auto })
     await js(`document.querySelector('.dev-page').scrollTo({ top: document.querySelector('.dev-console').offsetTop - 60, behavior: 'smooth' })`)

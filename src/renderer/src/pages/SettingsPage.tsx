@@ -53,6 +53,25 @@ export function SettingsPage() {
       </div>
 
       <div className="settings-grid stagger">
+        <div className="card" style={{ gridColumn: '1 / -1' }}>
+          <div className="setting-row" style={{ borderTop: 0, paddingTop: 0 }}>
+            <div className="card-title" style={{ margin: 0 }} data-no-i18n>
+              <Icon name="globe" /> {s.language === 'ru' ? 'Язык интерфейса' : 'Interface language'}
+            </div>
+            <span className="spacer" />
+            <div data-no-i18n>
+              <Segmented
+                value={s.language}
+                onChange={(v) => update({ language: v })}
+                options={[
+                  { value: 'en', label: 'English' },
+                  { value: 'ru', label: 'Русский' }
+                ]}
+              />
+            </div>
+          </div>
+        </div>
+
         <div className="card">
           <div className="card-title">
             <Icon name="memory" /> Память и производительность
