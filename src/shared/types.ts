@@ -101,6 +101,8 @@ export interface GraphicsInfo {
 export type FixAction =
   /** Finds the mod on Modrinth by its mod id and installs it (with dependencies). */
   | { kind: 'installMod'; modId: string }
+  /** Several missing mods at once (server mismatch). */
+  | { kind: 'installMods'; modIds: string[] }
   | { kind: 'disableMod'; fileName: string }
   /** Replaces the jar with the newest Modrinth build for this instance's version and loader. */
   | { kind: 'updateMod'; fileName: string }
@@ -139,7 +141,7 @@ export interface Diagnosis {
   id: string
   instanceId: string
   /** preflight = found before launch, crash = game crashed, disconnect = could not join / kicked from a server. */
-  phase: 'preflight' | 'crash' | 'disconnect'
+  phase: 'preflight' | 'crash' | 'disconnect' | 'server'
   createdAt: number
   headline: string
   problems: Problem[]
@@ -160,6 +162,47 @@ export interface BisectState {
   detail: string
   /** Set when finished: file name of the culprit mod. */
   culprit?: string
+  error?: string
+}
+
+/* ---------- Поделиться сборкой / модом ---------- */
+
+export interface ShareResult {
+  /** Text code a friend pastes into "Add by code". */
+  code: string
+  /** Mods the code carries (found on Modrinth). */
+  shared: number
+  /** Mods that are not on Modrinth: only the pack file (.bbpack) carries them. */
+  missing: string[]
+}
+
+export interface SharePreview {
+  kind: 'pack' | 'mod'
+  name: string
+  mcVersion: string
+  loader: LoaderId
+  loaderVersion?: string
+  mods: number
+  /** Mods the friend will not get (not on Modrinth and not inside the file). */
+  missing: string[]
+  /** Pack files only: configs, quests, scripts and non-Modrinth jars are inside. */
+  hasFiles: boolean
+}
+
+/** Result of "Check a server": ping + comparison of the server's mods with the instance. */
+export interface ServerStatus {
+  address: string
+  online: boolean
+  version?: string
+  motd?: string
+  players?: { online: number; max: number }
+  loader?: 'forge' | 'neoforge' | 'modded' | 'vanilla'
+  /** Mod ids the server announced (Forge servers do, NeoForge/Fabric don't). */
+  mods?: string[]
+  /** Mods the server has and the instance doesn't. */
+  missing: string[]
+  /** Nothing to fix: versions and known mods match. */
+  ok: boolean
   error?: string
 }
 

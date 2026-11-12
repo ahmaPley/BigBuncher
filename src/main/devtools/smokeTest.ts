@@ -339,3 +339,171 @@ export async function runMultiTest(): Promise<void> {
 /** zip containing pack.mcmeta = {"pack":{"pack_format":15,"description":"BigBuncher test"}} */
 const TEST_PACK_ZIP_BASE64 =
   'UEsDBBQAAAAAAAAAAADvrz7hOwAAADsAAAALAAAAcGFjay5tY21ldGF7InBhY2siOnsicGFja19mb3JtYXQiOjE1LCJkZXNjcmlwdGlvbiI6IkJpZ0J1bmNoZXIgdGVzdCJ9fVBLAQIUABQAAAAAAAAAAADvrz7hOwAAADsAAAALAAAAAAAAAAAAAAAAAAAAAABwYWNrLm1jbWV0YVBLBQYAAAAAAQABADkAAABkAAAAAAA='
+
+/**
+ * BIGBUNCHER_SMOKE=share — share codes and pack files round trip, plus "check a server" against a fake
+ * Forge server on localhost (status JSON with the packed mod list, like Forge 1.18+ sends).
+ */
+export async function runShareTest(): Promise<void> {
+  const { updateSettings } = await import('../settings/settingsService')
+  const { createInstance, addInstanceRecord, newInstanceId, getInstance } = await import('../instances/instanceService')
+  const { installMod, listInstalledMods, setModEnabled, modsDir } = await import('../mods/modService')
+  const share = await import('../share/shareService')
+  const { checkServer, decodeForgeData } = await import('../share/serverCheck')
+  const { listLoaderVersions } = await import('../minecraft/versionService')
+  const { onAppEvent } = await import('../core/events')
+  const { mkdirSync, writeFileSync, readdirSync, readFileSync, existsSync } = await import('node:fs')
+  const { createServer } = await import('node:net')
+  const { deflateRawSync } = await import('node:zlib')
+  type Diagnosis = import('../../shared/types').Diagnosis
+  const log = (...a: unknown[]): void => console.log('[share]', ...a)
+  const assert = (ok: unknown, msg: string): void => {
+    if (!ok) throw new Error(`ASSERT: ${msg}`)
+    log('ok -', msg)
+  }
+  const files = (id: string): string[] => (existsSync(modsDir(id)) ? readdirSync(modsDir(id)).sort() : [])
+
+  updateSettings({ gameDir: process.env.BIGBUNCHER_SMOKE_GAMEDIR, afterLaunch: 'keep' })
+  const fabric = await listLoaderVersions('fabric', '1.21.1')
+  const loaderVersion = (fabric.find((v) => v.stable) ?? fabric[0]).version
+  const a = await createInstance({ name: 'share-src', icon: 'log', mcVersion: '1.21.1', loader: 'fabric', loaderVersion })
+  await installMod(a.id, 'modrinth', 'modmenu') // + Fabric API as a dependency
+  const modmenu = listInstalledMods(a.id).find((m) => /modmenu/i.test(m.fileName))!
+  setModEnabled(a.id, modmenu.fileName, false)
+  writeFileSync(join(modsDir(a.id), 'my-local-mod.jar'), Buffer.from(TEST_PACK_ZIP_BASE64, 'base64'))
+  mkdirSync(join(instanceDir(a.id), 'config'), { recursive: true })
+  writeFileSync(join(instanceDir(a.id), 'config', 'share-test.toml'), 'hello = "friend"\n')
+  log('source mods:', files(a.id))
+
+  // --- pack code ---
+  const res = await share.createShareCode(a.id)
+  log('code length:', res.code.length, res.code.slice(0, 40) + '…')
+  assert(res.code.startsWith('BB1-') && res.shared === files(a.id).length - 1, 'code carries every Modrinth mod')
+  assert(res.missing.length === 1 && res.missing[0] === 'my-local-mod', 'local jar reported as not shareable by code')
+  const preview = await share.previewCode(`  ${res.code.slice(0, 30)}\n${res.code.slice(30)}  `)
+  assert(preview.kind === 'pack' && preview.mods === res.shared && preview.loader === 'fabric' && preview.loaderVersion === loaderVersion, 'preview survives line breaks')
+  const bad = async (code: string): Promise<string> => share.previewCode(code).then(() => 'accepted', (e: Error) => e.message)
+  assert((await bad('hello')) !== 'accepted', 'random text rejected')
+  assert((await bad('BB1-AAAA')) !== 'accepted', 'broken code rejected')
+  const evil = 'BB1-' + deflateRawSync(Buffer.from(JSON.stringify({ k: 'p', n: 'x', v: '1.21.1', l: 'fabric', m: ['../../etc'] }))).toString('base64url')
+  assert((await bad(evil)) !== 'accepted', 'malicious version id rejected')
+
+  const b = (await share.importCode(res.code)).instance
+  const expected = files(a.id).filter((f) => f !== 'my-local-mod.jar')
+  log('imported mods:', files(b.id))
+  assert(JSON.stringify(files(b.id)) === JSON.stringify(expected), 'friend gets the same jars (disabled stays disabled)')
+  assert(getInstance(b.id).installed && getInstance(b.id).loaderVersion === loaderVersion, 'friend instance installed with the same loader')
+
+  // --- mod code into another instance: dependency comes along ---
+  const c = addInstanceRecord({ id: newInstanceId(), name: 'share-mod-target', icon: 'grass', mcVersion: '1.21.1', loader: 'fabric', loaderVersion, versionId: '1.21.1', installed: false, createdAt: Date.now() })
+  const modCode = await share.createShareCode(a.id, modmenu.fileName)
+  assert((await share.previewCode(modCode.code)).kind === 'mod', 'mod code previews as a mod')
+  await share.importCode(modCode.code, c.id)
+  log('mod target:', files(c.id))
+  assert(files(c.id).some((f) => /modmenu/i.test(f)) && files(c.id).some((f) => /fabric-api/i.test(f)), 'mod + its Fabric API dependency installed')
+  const local = await share.createShareCode(a.id, 'my-local-mod.jar').then(() => '', (e: Error) => e.message)
+  assert(local.includes('Modrinth'), 'local jar cannot be shared by code: clear message')
+
+  // --- pack file: local jar + config travel too ---
+  const packFile = join(app.getPath('userData'), 'test.bbpack')
+  await share.writeShareFile(a.id, packFile)
+  const d = (await share.importShareFile(packFile)).instance
+  log('file import mods:', files(d.id))
+  assert(JSON.stringify(files(d.id)) === JSON.stringify(files(a.id)), 'pack file brings every jar, the local one too')
+  assert(readFileSync(join(instanceDir(d.id), 'config', 'share-test.toml'), 'utf8').includes('friend'), 'config inside the pack file')
+
+  // --- server check against a fake Forge server ---
+  const varint = (n: number): number[] => {
+    const out: number[] = []
+    do {
+      let x = n & 0x7f
+      n >>>= 7
+      if (n) x |= 0x80
+      out.push(x)
+    } while (n)
+    return out
+  }
+  const encodeForge = (mods: { id: string; serverOnly: boolean }[]): string => {
+    const bytes: number[] = [0, mods.length >> 8, mods.length & 0xff]
+    const utf = (s: string): void => {
+      const buf = Buffer.from(s)
+      bytes.push(...varint(buf.length), ...buf)
+    }
+    for (const m of mods) {
+      bytes.push(...varint(m.serverOnly ? 3 : 2)) // one channel (+ server-only flag)
+      utf(m.id)
+      if (!m.serverOnly) utf('1.0')
+      utf('main')
+      utf('1')
+      bytes.push(1)
+    }
+    bytes.push(0)
+    let out = String.fromCharCode(bytes.length & 0x7fff, bytes.length >> 15)
+    let buffer = 0
+    let bits = 0
+    for (const byte of bytes) {
+      buffer |= byte << bits
+      bits += 8
+      if (bits >= 15) {
+        out += String.fromCharCode(buffer & 0x7fff)
+        buffer >>>= 15
+        bits -= 15
+      }
+    }
+    if (bits > 0) out += String.fromCharCode(buffer & 0x7fff)
+    return out
+  }
+  const serverMods = [
+    { id: 'forge', serverOnly: false },
+    { id: 'jei', serverOnly: false },
+    { id: 'geckolib', serverOnly: false },
+    { id: 'spark', serverOnly: true }
+  ]
+  const decoded = decodeForgeData(encodeForge(serverMods))
+  assert(decoded.mods.map((m) => m.id).join() === 'forge,jei,geckolib,spark' && decoded.mods[3].serverOnly, 'forge mod list decoder')
+
+  const status = JSON.stringify({
+    version: { name: '1.20.1', protocol: 763 },
+    players: { online: 3, max: 20 },
+    description: { text: 'BigBuncher ', extra: [{ text: 'test server' }] },
+    forgeData: { channels: [], mods: [], fmlNetworkVersion: 3, truncated: false, d: encodeForge(serverMods) }
+  })
+  const server = createServer((socket) => {
+    socket.on('error', () => undefined)
+    socket.once('data', () => {
+      const body = Buffer.from(status)
+      const payload = Buffer.concat([Buffer.from(varint(0)), Buffer.from(varint(body.length)), body])
+      socket.end(Buffer.concat([Buffer.from(varint(payload.length)), payload]))
+    })
+  })
+  await new Promise<void>((r) => server.listen(0, '127.0.0.1', () => r()))
+  const port = (server.address() as { port: number }).port
+  const forgeInst = addInstanceRecord({ id: newInstanceId(), name: 'share-forge', icon: 'furnace', mcVersion: '1.20.1', loader: 'forge', loaderVersion: '47.4.10', versionId: '1.20.1', installed: false, createdAt: Date.now() })
+  mkdirSync(modsDir(forgeInst.id), { recursive: true })
+  let published: Diagnosis | undefined
+  const off = onAppEvent((event, payload) => {
+    if (event === 'diagnosis') published = payload as Diagnosis
+  })
+  const st = await checkServer(forgeInst.id, `127.0.0.1:${port}`)
+  log('server status:', JSON.stringify(st))
+  assert(st.online && st.loader === 'forge' && st.version === '1.20.1' && st.motd === 'BigBuncher test server', 'ping read version, loader, motd')
+  assert(st.missing.join() === 'jei,geckolib', 'missing = jei + geckolib (forge builtin and server-only spark skipped)')
+  assert(published?.phase === 'server' && published.problems[0].fixes[0].action.kind === 'installMods', 'doctor opened with one "install all" fix')
+
+  published = undefined
+  const wrong = await checkServer(b.id, `127.0.0.1:${port}`)
+  const titles = (published as Diagnosis | undefined)?.problems.map((p) => p.title) ?? []
+  log('fabric instance vs forge server:', titles)
+  assert(!wrong.ok && titles.includes('Сервер на другой версии (1.20.1)') && titles.some((t) => t.startsWith('Сервер на Forge')), 'fabric 1.21.1 instance: version + loader mismatch')
+  off()
+  server.close()
+  const closed = await checkServer(b.id, '127.0.0.1:1')
+  assert(!closed.online && closed.error, `closed port reported: ${closed.error}`)
+  // BIGBUNCHER_SMOKE_SERVER=host[:port] — also ping a real server (prints what it announced)
+  if (process.env.BIGBUNCHER_SMOKE_SERVER) {
+    const real = await checkServer(b.id, process.env.BIGBUNCHER_SMOKE_SERVER)
+    log('real server:', JSON.stringify({ ...real, mods: real.mods?.length }))
+    assert(real.online, 'real server answered the ping')
+  }
+  log('SHARE TEST PASSED')
+}

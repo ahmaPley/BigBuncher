@@ -41,7 +41,7 @@ export function DoctorModal() {
       <div className="doctor">
         <div className={`doctor-head ${d.phase}`}>
           <div className="doctor-icon">
-            <Icon name={d.phase === 'disconnect' ? 'globe' : d.phase === 'preflight' ? 'alert' : 'stethoscope'} size={26} />
+            <Icon name={d.phase === 'disconnect' || d.phase === 'server' ? 'globe' : d.phase === 'preflight' ? 'alert' : 'stethoscope'} size={26} />
           </div>
           <div style={{ minWidth: 0 }}>
             <div className="doctor-headline">{d.headline}</div>

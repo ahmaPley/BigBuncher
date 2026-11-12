@@ -513,7 +513,7 @@ export function analyzeDisconnect(reason: string, ctx: Pick<AnalyzeContext, 'ins
         : 'Набор модов (или их версии) у тебя и на сервере отличается. Возьми у админа список модов сервера или его модпак.',
       confidence: ids.size ? 'high' : 'medium',
       evidence: r,
-      fixes: [...ids].slice(0, 8).map(install)
+      fixes: ids.size === 1 ? [...ids].map(install) : ids.size ? [{ label: `Установить ${ids.size} мод(ов) с Modrinth`, action: { kind: 'installMods', modIds: [...ids] } }] : []
     }]
   }
   return [{

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { ShareModal } from '../components/Share'
 import type { InstalledMod, ModProviderId, ModProviderInfo, ModSearchHit } from '../../../shared/types'
 import { Icon } from '../components/Icon'
 import { InstancePicker } from '../components/InstancePicker'
@@ -208,7 +209,9 @@ function Browse({
 }
 
 function Installed({ instanceId, mods, onChange }: { instanceId: string; mods: InstalledMod[]; onChange(m: InstalledMod[]): void }) {
-  const { run } = useApp()
+  const { run, instances } = useApp()
+  const [sharing, setSharing] = useState<InstalledMod>()
+  const instance = instances.find((i) => i.id === instanceId)
   const apply = async (action: () => Promise<InstalledMod[]>): Promise<void> => {
     const res = await run(action)
     if (res) onChange(res)
@@ -245,11 +248,13 @@ function Installed({ instanceId, mods, onChange }: { instanceId: string; mods: I
                 </div>
               </div>
               <Toggle on={m.enabled} onChange={(v) => void apply(() => api.mods.setEnabled(instanceId, m.fileName, v))} />
+              <Button size="sm" variant="ghost" icon="share" iconOnly title="Поделиться модом (код)" onClick={() => setSharing(m)} />
               <Button size="sm" variant="danger" icon="trash" iconOnly title="Удалить" onClick={() => void apply(() => api.mods.remove(instanceId, m.fileName))} />
             </div>
           ))}
         </div>
       )}
+      {sharing && instance && <ShareModal instance={instance} mod={{ fileName: sharing.fileName, title: sharing.title }} onClose={() => setSharing(undefined)} />}
     </>
   )
 }

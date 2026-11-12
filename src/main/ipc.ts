@@ -12,6 +12,8 @@ import * as versions from './minecraft/versionService'
 import * as mods from './mods/modService'
 import * as multipacks from './instances/multiPackService'
 import { latestNews } from './news/newsService'
+import * as share from './share/shareService'
+import { checkServer } from './share/serverCheck'
 import * as packs from './resourcepacks/resourcePackService'
 import * as updates from './updates/updateService'
 import { getSettings, updateSettings } from './settings/settingsService'
@@ -140,6 +142,15 @@ const handlers: BigBuncherApi = {
     listWorlds: async (id) => dev.listWorlds(id),
     openFolder: dev.openDevFolder
   },
+  share: {
+    createCode: share.createShareCode,
+    saveFile: share.saveShareFile,
+    preview: share.previewCode,
+    importCode: share.importCode,
+    openFile: share.openShareFile,
+    importFile: share.importShareFile
+  },
+  server: { check: checkServer },
   tasks: { list: async () => listTasks() }
 }
 

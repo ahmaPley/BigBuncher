@@ -17,16 +17,27 @@ const PROVIDERS: ModProvider[] = [modrinthProvider, curseforgeProvider]
 
 const DISABLED_SUFFIX = '.disabled'
 
-type ModMeta = Omit<ResolvedModFile, 'url' | 'dependencies' | 'fileName'>
+export type ModMeta = Omit<ResolvedModFile, 'url' | 'dependencies' | 'fileName'>
 type ModIndex = { files: Record<string, ModMeta> }
 
-const modsDir = (instanceId: string): string => join(instanceDir(instanceId), 'mods')
+export const modsDir = (instanceId: string): string => join(instanceDir(instanceId), 'mods')
 
 /** Per-instance index (mods/../bigbuncher-mods.json) remembering where each jar came from. */
 const indexStore = (instanceId: string): JsonStore<ModIndex> =>
   new JsonStore(join(instanceDir(instanceId), 'bigbuncher-mods.json'), () => ({ files: {} }))
 
-function getProvider(id: ModProviderId): ModProvider {
+/** Remembers where a jar came from (shown in the mods list, used to update/replace it). */
+export function recordModFile(instanceId: string, fileName: string, meta: ModMeta): void {
+  indexStore(instanceId).update((data) => {
+    data.files[fileName] = meta
+  })
+}
+
+export function modIndex(instanceId: string): Record<string, ModMeta> {
+  return indexStore(instanceId).get().files
+}
+
+export function getProvider(id: ModProviderId): ModProvider {
   const provider = PROVIDERS.find((p) => p.id === id)
   if (!provider) throw new Error(`Неизвестная площадка: ${id}`)
   const { available, reason } = provider.availability()

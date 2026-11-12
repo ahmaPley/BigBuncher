@@ -26,6 +26,11 @@ A Minecraft: Java Edition launcher for Windows. Electron + React + TypeScript.
 - Automatic Java download (official Mojang runtimes) or a custom Java.
 - RAM, Java, game folder, resolution and JVM argument settings, all persisted.
 - **Auto-update** through GitHub Releases: the launcher offers new versions itself.
+- **Share an instance or a mod** (1.4): the Share button gives a short code (Modrinth mods of the same versions, no server
+  needed) — a friend presses "Add by code" and gets the same instance or mod (with dependencies). A `.bbpack` file also
+  carries configs, quests, KubeJS scripts and mods that are not on Modrinth.
+- **Server check** (1.4): enter a server address and the launcher pings it before you join, compares the version and loader
+  and, on Forge servers, the mod list; missing mods install in one click through the Doctor.
 - **Several games at once** (1.3): different instances can run side by side and be stopped one by one.
 - **Crash Doctor** (1.2): after a crash it reads `latest.log`, the crash report and `hs_err`, explains the cause in plain
   words and fixes it in one click, relaunching the game: installs a missing mod from Modrinth, updates or disables the
@@ -72,6 +77,8 @@ BIGBUNCHER_SMOKE=1 BIGBUNCHER_SMOKE_LOADERS=fabric,forge,neoforge,quilt BIGBUNCH
 BIGBUNCHER_SMOKE=features npx electron .
 # crash doctor: known-error rules + a real broken Fabric pack fixed in one click
 BIGBUNCHER_SMOKE=doctor npx electron .
+# share codes / .bbpack round trip + server check against a fake Forge server
+BIGBUNCHER_SMOKE=share npx electron .
 # screenshot of a page (#skins/new opens the skin editor)
 BIGBUNCHER_PAGE=skins BIGBUNCHER_CAPTURE=shot.png npx electron .
 ```

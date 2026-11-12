@@ -166,6 +166,20 @@ src/renderer/src/
   автопоиск виновника `startBisect` (запуски с половиной подозреваемых модов + их зависимости; моды всегда
   возвращаются как были). События: `diagnosis`, `bisect`.
 
+### Поделиться и проверка сервера (`src/main/share/`)
+
+- `shareService.ts` — код `BB1-` + base64url(deflateRaw(JSON)): версия MC, загрузчик и его версия, Modrinth version id
+  всех jar (sha1 → `POST /v2/version_files`), отдельно выключенные, названия модов не с Modrinth. Код из чужих рук:
+  `validate` проверяет каждое поле. Импорт сборки: `createInstance` (с заранее выданным id) и параллельно скачивание
+  точных версий (`/v2/versions?ids=`, только cdn.modrinth.com, проверка sha1); импорт мода: точная версия + обязательные
+  зависимости, а если версия не подходит к сборке — свежая сборка мода через `installMod`. Файл `.bbpack` = zip:
+  `bigbuncher.json` + jar не с Modrinth + `config/`, `defaultconfigs/`, `kubejs/` (миры никогда); распаковка только в эти
+  папки сборки.
+- `serverCheck.ts` — Server List Ping (handshake → status, SRV-запись `_minecraft._tcp`), разбор `forgeData` (Forge
+  1.18+ упаковывает список модов в строку `d`: 15 бит на символ → бинарный список; моды с флагом server-only не нужны
+  клиенту), `modinfo` (старый Forge), `isModded` (NeoForge — список модов не отдаёт). Расхождения публикуются как
+  `Diagnosis` с `phase: 'server'`, исправление `installMods`.
+
 ### Графика (`minecraft/graphicsService.ts`)
 
 Версии с `net/minecraft/client/PreferredGraphicsApi.class` в jar (26.2+) получают `--graphicsBackend vulkan|opengl`

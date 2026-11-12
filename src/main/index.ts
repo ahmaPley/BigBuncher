@@ -1,7 +1,7 @@
 import { app, BrowserWindow, shell } from 'electron'
 import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { prepareSmokeTestPaths, runDoctorTest, runFeatureTest, runMultiTest, runSmokeTest } from './devtools/smokeTest'
+import { prepareSmokeTestPaths, runDoctorTest, runFeatureTest, runMultiTest, runShareTest, runSmokeTest } from './devtools/smokeTest'
 import { startDevWatchers } from './dev/devService'
 import { prepareTrailerPaths, runTrailer } from './devtools/trailer'
 import { registerIpcHandlers } from './ipc'
@@ -48,6 +48,7 @@ function createMainWindow(): BrowserWindow {
           win.webContents.sendInputEvent({ type: 'mouseUp', x, y, button: 'left', clickCount: 1 })
           await new Promise((r) => setTimeout(r, 400))
         }
+        await new Promise((r) => setTimeout(r, Number(process.env.BIGBUNCHER_CAPTURE_AFTER ?? 0)))
         writeFileSync(capture, (await win.webContents.capturePage()).toPNG())
         app.quit()
       }, Number(process.env.BIGBUNCHER_CAPTURE_DELAY ?? 4000))
@@ -59,7 +60,7 @@ function createMainWindow(): BrowserWindow {
 if (process.env.BIGBUNCHER_SMOKE) {
   prepareSmokeTestPaths()
   app.whenReady().then(() =>
-    (process.env.BIGBUNCHER_SMOKE === 'features' ? runFeatureTest() : process.env.BIGBUNCHER_SMOKE === 'doctor' ? runDoctorTest() : process.env.BIGBUNCHER_SMOKE === 'multi' ? runMultiTest() : runSmokeTest()).then(
+    (process.env.BIGBUNCHER_SMOKE === 'features' ? runFeatureTest() : process.env.BIGBUNCHER_SMOKE === 'doctor' ? runDoctorTest() : process.env.BIGBUNCHER_SMOKE === 'multi' ? runMultiTest() : process.env.BIGBUNCHER_SMOKE === 'share' ? runShareTest() : runSmokeTest()).then(
       () => app.exit(0),
       (err) => {
         console.error('[smoke] FAILED', err)

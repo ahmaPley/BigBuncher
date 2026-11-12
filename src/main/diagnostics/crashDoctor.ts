@@ -370,6 +370,22 @@ async function applyOne(instanceId: string, action: FixAction): Promise<string> 
       await installMod(instanceId, 'modrinth', project)
       return `Установлен «${prettyId(action.modId)}»`
     }
+    case 'installMods': {
+      const ok: string[] = []
+      const missing: string[] = []
+      for (const id of action.modIds) {
+        try {
+          const project = await findProject(instance, id)
+          if (!project) throw new Error('not found')
+          await installMod(instanceId, 'modrinth', project)
+          ok.push(prettyId(id))
+        } catch {
+          missing.push(prettyId(id))
+        }
+      }
+      if (!ok.length) throw new Error(`Не нашёл на Modrinth под ${instance.loader} ${instance.mcVersion}: ${missing.join(', ')}. Попроси у админа код сборки сервера.`)
+      return `Установлено: ${ok.join(', ')}${missing.length ? `. Не нашёл на Modrinth: ${missing.join(', ')} — их попроси у админа` : ''}`
+    }
     case 'disableMod':
       setModEnabled(instanceId, action.fileName, false)
       return `Выключен ${action.fileName} (включить обратно можно во вкладке «Моды»)`

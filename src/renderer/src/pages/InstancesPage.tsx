@@ -1,7 +1,9 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import type { Instance, MultiPack } from '../../../shared/types'
-import { Icon } from '../components/Icon'
+import { Icon, type IconName } from '../components/Icon'
 import { AddStateModal } from '../components/AddStateModal'
+import { ImportModal, ServerModal, ShareModal } from '../components/Share'
 import { BlockIcon, Button, EmptyState, Modal } from '../components/ui'
 import { api } from '../lib/api'
 import { LOADER_LABELS } from '../lib/assets'
@@ -15,6 +17,9 @@ type Dialog =
   | { kind: 'addState'; pack: MultiPack }
   | { kind: 'renamePack'; pack: MultiPack }
   | { kind: 'dissolve'; pack: MultiPack }
+  | { kind: 'share'; instance: Instance }
+  | { kind: 'server'; instance: Instance }
+  | { kind: 'import' }
 
 export function InstancesPage() {
   const { instances, multiPacks, navigate } = useApp()
@@ -31,6 +36,9 @@ export function InstancesPage() {
           <p>Сборки и мультисборки: у каждой свои моды, миры и настройки.</p>
         </div>
         <span className="spacer" />
+        <Button icon="download" onClick={() => setDialog({ kind: 'import' })}>
+          Добавить по коду
+        </Button>
         <Button variant="primary" icon="plus" onClick={() => navigate('install')}>
           Новая сборка
         </Button>
@@ -80,6 +88,9 @@ export function InstancesPage() {
       {dialog?.kind === 'addState' && <AddStateModal pack={dialog.pack} onClose={close} />}
       {dialog?.kind === 'remove' && <RemoveModal instance={dialog.instance} onClose={close} />}
       {dialog?.kind === 'dissolve' && <DissolveModal pack={dialog.pack} onClose={close} />}
+      {dialog?.kind === 'share' && <ShareModal instance={dialog.instance} onClose={close} />}
+      {dialog?.kind === 'server' && <ServerModal instance={dialog.instance} onClose={close} />}
+      {dialog?.kind === 'import' && <ImportModal onClose={close} />}
     </div>
   )
 }
@@ -119,16 +130,32 @@ const loaderChip = (i: Instance) => (
   </span>
 )
 
-/** Buttons shared by single instances and the active state of a multi-pack. */
-function InstanceActions({ instance, onDialog, extra }: { instance: Instance; onDialog(d: Dialog): void; extra?: React.ReactNode }) {
+/** Buttons shared by single instances and the active state of a multi-pack. Rare actions live in the "⋯" menu. */
+function InstanceActions({ instance, onDialog, onMakeMulti }: { instance: Instance; onDialog(d: Dialog): void; onMakeMulti?(): void }) {
   const { run, navigate, launch, toast } = useApp()
   const { task, busy } = useInstanceStatus(instance)
+  const items: MenuItem[] = [
+    {
+      icon: 'stethoscope',
+      label: 'Доктор крашей',
+      onClick: async () => {
+        const d = (await run(() => api.doctor.analyzeLastRun(instance.id))) ?? (await run(() => api.doctor.preflight(instance.id)))
+        if (d === null) toast('success', 'Проблем не нашёл', 'Моды в порядке, последний запуск без краша')
+      }
+    },
+    { icon: 'folder', label: 'Открыть папку', onClick: () => void run(() => api.instances.openFolder(instance.id)) },
+    { icon: 'pencil', label: 'Переименовать', onClick: () => onDialog({ kind: 'rename', instance }) },
+    ...(onMakeMulti ? [{ icon: 'layers' as const, label: 'Сделать мультисборкой', onClick: onMakeMulti }] : []),
+    { icon: 'wrench', label: 'Проверить и восстановить файлы', disabled: Boolean(task), onClick: () => void run(() => api.instances.repair(instance.id), 'Файлы проверены') },
+    { icon: 'trash', label: 'Удалить', danger: true, disabled: Boolean(task), onClick: () => onDialog({ kind: 'remove', instance }) }
+  ]
   return (
     <div className="row" style={{ gap: 6 }}>
       <Button
         variant="primary"
         size="sm"
         icon="play"
+        style={{ flexShrink: 0 }}
         disabled={busy}
         onClick={() => {
           void run(() => api.instances.select(instance.id))
@@ -138,30 +165,75 @@ function InstanceActions({ instance, onDialog, extra }: { instance: Instance; on
         Играть
       </Button>
       <span className="spacer" />
-      {extra}
       <Button size="sm" icon="puzzle" iconOnly title="Моды" onClick={() => void api.instances.select(instance.id).then(() => navigate('mods'))} />
-      <Button size="sm" icon="folder" iconOnly title="Открыть папку" onClick={() => void run(() => api.instances.openFolder(instance.id))} />
+      <Button size="sm" icon="share" iconOnly title="Поделиться сборкой (код или файл)" onClick={() => onDialog({ kind: 'share', instance })} />
+      <Button size="sm" icon="globe" iconOnly title="Проверить сервер: подходит ли сборка" onClick={() => onDialog({ kind: 'server', instance })} />
+      <MoreMenu items={items} />
+    </div>
+  )
+}
+
+interface MenuItem {
+  icon: IconName
+  label: string
+  onClick(): void
+  disabled?: boolean
+  danger?: boolean
+}
+
+/** "⋯" button with a small menu. Rendered into body: cards use backdrop-filter, which would trap a fixed menu. */
+function MoreMenu({ items }: { items: MenuItem[] }) {
+  const [pos, setPos] = useState<{ top: number; right: number }>()
+  useEffect(() => {
+    if (!pos) return
+    const close = (): void => setPos(undefined)
+    window.addEventListener('mousedown', close)
+    window.addEventListener('blur', close)
+    window.addEventListener('resize', close)
+    document.addEventListener('scroll', close, true)
+    return () => {
+      window.removeEventListener('mousedown', close)
+      window.removeEventListener('blur', close)
+      window.removeEventListener('resize', close)
+      document.removeEventListener('scroll', close, true)
+    }
+  }, [pos])
+  return (
+    <>
       <Button
         size="sm"
-        icon="stethoscope"
+        icon="more"
         iconOnly
-        title="Доктор крашей: проверить моды и последний запуск"
-        onClick={async () => {
-          const d = (await run(() => api.doctor.analyzeLastRun(instance.id))) ?? (await run(() => api.doctor.preflight(instance.id)))
-          if (d === null) toast('success', 'Проблем не нашёл', 'Моды в порядке, последний запуск без краша')
+        title="Ещё"
+        onMouseDown={(e) => e.stopPropagation()}
+        onClick={(e) => {
+          if (pos) return setPos(undefined)
+          const r = e.currentTarget.getBoundingClientRect()
+          const top = r.bottom + 6 + 290 > window.innerHeight ? Math.max(8, r.top - 6 - 290) : r.bottom + 6
+          setPos({ top, right: window.innerWidth - r.right })
         }}
       />
-      <Button size="sm" icon="pencil" iconOnly title="Переименовать" onClick={() => onDialog({ kind: 'rename', instance })} />
-      <Button
-        size="sm"
-        icon="wrench"
-        iconOnly
-        title="Проверить и восстановить файлы"
-        disabled={Boolean(task)}
-        onClick={() => void run(() => api.instances.repair(instance.id), 'Файлы проверены')}
-      />
-      <Button size="sm" variant="danger" icon="trash" iconOnly title="Удалить" disabled={Boolean(task)} onClick={() => onDialog({ kind: 'remove', instance })} />
-    </div>
+      {pos &&
+        createPortal(
+          <div className="more-menu" style={{ top: pos.top, right: pos.right }} onMouseDown={(e) => e.stopPropagation()}>
+            {items.map((it) => (
+              <button
+                key={it.label}
+                className={it.danger ? 'danger' : ''}
+                disabled={it.disabled}
+                onClick={() => {
+                  setPos(undefined)
+                  it.onClick()
+                }}
+              >
+                <Icon name={it.icon} size={15} />
+                {it.label}
+              </button>
+            ))}
+          </div>,
+          document.body
+        )}
+    </>
   )
 }
 
@@ -186,11 +258,7 @@ function InstanceCard({ instance: i, onDialog }: { instance: Instance; onDialog(
       <div className="dim" style={{ fontSize: 12 }}>
         {i.lastPlayedAt ? `Последний запуск: ${formatDate(i.lastPlayedAt)}` : `Создана: ${formatDate(i.createdAt)}`}
       </div>
-      <InstanceActions
-        instance={i}
-        onDialog={onDialog}
-        extra={<Button size="sm" icon="layers" iconOnly title="Сделать мультисборкой" onClick={() => onDialog({ kind: 'makeMulti', instance: i })} />}
-      />
+      <InstanceActions instance={i} onDialog={onDialog} onMakeMulti={() => onDialog({ kind: 'makeMulti', instance: i })} />
     </div>
   )
 }

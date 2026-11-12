@@ -39,6 +39,9 @@ import type {
   NewInstanceRequest,
   NewsItem,
   Settings,
+  ServerStatus,
+  SharePreview,
+  ShareResult,
   SkinEntry,
   SkinModel,
   TaskState
@@ -172,9 +175,29 @@ export interface BigBuncherApi {
     listWorlds(instanceId: string): Promise<string[]>
     openFolder(instanceId: string, which: 'mods' | 'config' | 'logs' | 'crash-reports' | 'mixin' | 'project'): Promise<void>
   }
+  share: {
+    /** Code for the whole instance, or for one mod (file name in mods/). */
+    createCode(instanceId: string, fileName?: string): Promise<ShareResult>
+    /** Saves the instance with configs as a .bbpack file; null = cancelled. */
+    saveFile(instanceId: string): Promise<string | null>
+    preview(code: string): Promise<SharePreview>
+    /** Pack code → new instance; mod code → installs into targetInstanceId. */
+    importCode(code: string, targetInstanceId?: string): Promise<ShareImportResult>
+    openFile(): Promise<{ path: string; preview: SharePreview } | null>
+    importFile(path: string): Promise<ShareImportResult>
+  }
+  server: {
+    /** Pings the server and compares version/mods with the instance (publishes a diagnosis when they differ). */
+    check(instanceId: string, address: string): Promise<ServerStatus>
+  }
   tasks: {
     list(): Promise<TaskState[]>
   }
+}
+
+export interface ShareImportResult {
+  instance: Instance
+  failed: string[]
 }
 
 type MethodNames<T> = { [K in keyof T]: ReadonlyArray<keyof T[K] & string> }
@@ -196,6 +219,8 @@ export const API_METHODS: MethodNames<BigBuncherApi> = {
   doctor: ['last', 'analyzeLastRun', 'analyzeText', 'preflight', 'applyFixes', 'startBisect', 'cancelBisect', 'bisectState'],
   graphics: ['detect', 'hasChoice'],
   dev: ['getProfile', 'saveProfile', 'pickProject', 'inspectProject', 'build', 'cancelBuild', 'deploy', 'buildAndRun', 'restart', 'inspectMods', 'listWorlds', 'openFolder'],
+  share: ['createCode', 'saveFile', 'preview', 'importCode', 'openFile', 'importFile'],
+  server: ['check'],
   tasks: ['list']
 }
 
