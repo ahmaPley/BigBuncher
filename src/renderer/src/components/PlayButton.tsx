@@ -9,7 +9,7 @@ export function PlayButton() {
   const [starting, setStarting] = useState(false)
 
   const busyTask = tasks.find((t) => t.status === 'running' && selectedInstance && t.instanceId === selectedInstance.id)
-  const runningThis = game.running && game.instanceId === selectedInstance?.id
+  const runningThis = Boolean(selectedInstance && game.sessions.some((s) => s.instanceId === selectedInstance.id))
 
   let label = 'Играть'
   let icon: 'play' | 'stop' | 'download' = 'play'
@@ -30,7 +30,7 @@ export function PlayButton() {
   } else if (runningThis) {
     label = 'Остановить'
     icon = 'stop'
-    action = async () => void (await run(() => api.game.stop()))
+    action = async () => void (await run(() => api.game.stop(selectedInstance!.id)))
   }
 
   const busy = starting || Boolean(busyTask) || Boolean(bisect?.running)
@@ -40,11 +40,11 @@ export function PlayButton() {
     <button
       className={`play-button ${runningThis ? 'running' : ''} ${busy ? 'busy' : ''}`}
       onClick={() => void action()}
-      disabled={busy || (game.running && !runningThis)}
+      disabled={busy}
     >
       {progress !== undefined && <span className="play-progress" style={{ width: `${progress * 100}%` }} />}
       {busy ? <span className="spinner" style={{ width: 22, height: 22 }} /> : <Icon name={icon} size={24} />}
-      <span>{busy ? (progress !== undefined ? `${Math.round(progress * 100)}%` : 'Запуск…') : game.running && !runningThis ? 'Игра запущена' : label}</span>
+      <span>{busy ? (progress !== undefined ? `${Math.round(progress * 100)}%` : 'Запуск…') : label}</span>
     </button>
   )
 }

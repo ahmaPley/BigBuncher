@@ -59,7 +59,7 @@ const handlers: BigBuncherApi = {
   },
   game: {
     launch: (id, opts) => launchInstance(id, opts),
-    stop: async () => stopGame(),
+    stop: async (id) => stopGame(id),
     state: async () => getGameState()
   },
   mods: {

@@ -68,7 +68,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   const [update, setUpdate] = useState<UpdateInfo>()
   const [skins, setSkins] = useState<SkinEntry[]>([])
   const [defaultSkin, setDefaultSkin] = useState<string>()
-  const [game, setGame] = useState<GameState>({ running: false })
+  const [game, setGame] = useState<GameState>({ running: false, sessions: [] })
   const [tasks, setTasks] = useState<TaskState[]>([])
   const [logs, setLogs] = useState<GameLogLine[]>([])
   const [toasts, setToasts] = useState<Toast[]>([])

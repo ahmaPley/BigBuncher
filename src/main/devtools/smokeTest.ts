@@ -286,6 +286,56 @@ export async function runDoctorTest(): Promise<void> {
   log('DOCTOR TEST PASSED')
 }
 
+/**
+ * Two instances at once: both must reach the main menu while the other one runs.
+ * Run:  BIGBUNCHER_SMOKE=multi npx electron .
+ */
+export async function runMultiTest(): Promise<void> {
+  const { updateSettings } = await import('../settings/settingsService')
+  const { addOfflineAccount } = await import('../auth/accountService')
+  const { createInstance } = await import('../instances/instanceService')
+  const { launchInstance, stopGame, getGameState } = await import('../minecraft/launchService')
+  const { onAppEvent } = await import('../core/events')
+  const log = (...a: unknown[]): void => console.log('[multi]', ...a)
+
+  updateSettings({ gameDir: process.env.BIGBUNCHER_SMOKE_GAMEDIR, afterLaunch: 'keep', maxRamMb: 2048, preflightCheck: false })
+  addOfflineAccount('MultiTester')
+  const a = await createInstance({ name: 'multi-a', icon: 'grass', mcVersion: '1.21.1', loader: 'vanilla' })
+  const b = await createInstance({ name: 'multi-b', icon: 'stone', mcVersion: '1.21.1', loader: 'vanilla' })
+  const ready = new Set<string>()
+  const both = new Promise<void>((resolve, reject) => {
+    const timeout = setTimeout(() => reject(new Error('both games did not load in 5 minutes')), 5 * 60_000)
+    onAppEvent((event, payload) => {
+      if (event === 'gameLog') {
+        const p = payload as { instanceId: string; line: string }
+        if (/Sound engine started/.test(p.line) && !ready.has(p.instanceId)) {
+          ready.add(p.instanceId)
+          log('ready:', p.instanceId, `(${ready.size}/2), running now:`, getGameState().sessions.length)
+          if (ready.size === 2) {
+            clearTimeout(timeout)
+            resolve()
+          }
+        }
+      }
+    })
+  })
+  await launchInstance(a.id)
+  await launchInstance(b.id)
+  log('both processes started:', getGameState().sessions.map((s) => s.instanceId))
+  let sameTwice = ''
+  await launchInstance(a.id).catch((err: Error) => (sameTwice = err.message))
+  log('same instance twice ->', sameTwice || 'NOT BLOCKED')
+  await both
+  if (getGameState().sessions.length !== 2) throw new Error('expected two running sessions')
+  stopGame(a.id)
+  await new Promise((r) => setTimeout(r, 4000))
+  log('after stopping A, still running:', getGameState().sessions.map((s) => s.instanceId))
+  if (getGameState().sessions.length !== 1 || getGameState().instanceId !== b.id) throw new Error('stopping A must leave B running')
+  stopGame()
+  await new Promise((r) => setTimeout(r, 3000))
+  log('MULTI TEST PASSED')
+}
+
 /** zip containing pack.mcmeta = {"pack":{"pack_format":15,"description":"BigBuncher test"}} */
 const TEST_PACK_ZIP_BASE64 =
   'UEsDBBQAAAAAAAAAAADvrz7hOwAAADsAAAALAAAAcGFjay5tY21ldGF7InBhY2siOnsicGFja19mb3JtYXQiOjE1LCJkZXNjcmlwdGlvbiI6IkJpZ0J1bmNoZXIgdGVzdCJ9fVBLAQIUABQAAAAAAAAAAADvrz7hOwAAADsAAAALAAAAAAAAAAAAAAAAAAAAAABwYWNrLm1jbWV0YVBLBQYAAAAAAQABADkAAABkAAAAAAA='

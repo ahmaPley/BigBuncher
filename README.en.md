@@ -26,6 +26,7 @@ A Minecraft: Java Edition launcher for Windows. Electron + React + TypeScript.
 - Automatic Java download (official Mojang runtimes) or a custom Java.
 - RAM, Java, game folder, resolution and JVM argument settings, all persisted.
 - **Auto-update** through GitHub Releases: the launcher offers new versions itself.
+- **Several games at once** (1.3): different instances can run side by side and be stopped one by one.
 - **Crash Doctor** (1.2): after a crash it reads `latest.log`, the crash report and `hs_err`, explains the cause in plain
   words and fixes it in one click, relaunching the game: installs a missing mod from Modrinth, updates or disables the
   culprit (found via loader messages, mixin errors or the stack trace), raises RAM, restores automatic Java, resets a

@@ -179,17 +179,17 @@ export async function buildAndRun(instanceId: string): Promise<void> {
 }
 
 export async function restartGame(instanceId: string): Promise<void> {
-  const { getGameState, launchInstance, stopGame } = await import('../minecraft/launchService')
-  if (getGameState().running) {
+  const { isInstanceRunning, launchInstance, stopGame } = await import('../minecraft/launchService')
+  if (isInstanceRunning(instanceId)) {
     log('Перезапуск игры…', 'deploy', 'info')
     await new Promise<void>((resolve) => {
-      const off = onAppEvent((event, payload) => {
-        if (event === 'game' && !(payload as { running: boolean }).running) {
+      const off = onAppEvent(() => {
+        if (!isInstanceRunning(instanceId)) {
           off()
           resolve()
         }
       })
-      stopGame()
+      stopGame(instanceId)
       setTimeout(() => {
         off()
         resolve()
@@ -221,8 +221,8 @@ function syncWatcher(instanceId: string): void {
           timer = setTimeout(async () => {
             try {
               deploy(instanceId)
-              const { getGameState } = await import('../minecraft/launchService')
-              if (getGameState().running) log('Игра запущена — нажми «Перезапустить», чтобы подхватить новый jar', 'deploy', 'warn')
+              const { isInstanceRunning } = await import('../minecraft/launchService')
+              if (isInstanceRunning(instanceId)) log('Игра запущена — нажми «Перезапустить», чтобы подхватить новый jar', 'deploy', 'warn')
             } catch (err) {
               log(String(err), 'deploy', 'error')
             }

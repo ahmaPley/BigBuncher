@@ -1,7 +1,7 @@
 import { app, BrowserWindow, shell } from 'electron'
 import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { prepareSmokeTestPaths, runDoctorTest, runFeatureTest, runSmokeTest } from './devtools/smokeTest'
+import { prepareSmokeTestPaths, runDoctorTest, runFeatureTest, runMultiTest, runSmokeTest } from './devtools/smokeTest'
 import { startDevWatchers } from './dev/devService'
 import { prepareTrailerPaths, runTrailer } from './devtools/trailer'
 import { registerIpcHandlers } from './ipc'
@@ -59,7 +59,7 @@ function createMainWindow(): BrowserWindow {
 if (process.env.BIGBUNCHER_SMOKE) {
   prepareSmokeTestPaths()
   app.whenReady().then(() =>
-    (process.env.BIGBUNCHER_SMOKE === 'features' ? runFeatureTest() : process.env.BIGBUNCHER_SMOKE === 'doctor' ? runDoctorTest() : runSmokeTest()).then(
+    (process.env.BIGBUNCHER_SMOKE === 'features' ? runFeatureTest() : process.env.BIGBUNCHER_SMOKE === 'doctor' ? runDoctorTest() : process.env.BIGBUNCHER_SMOKE === 'multi' ? runMultiTest() : runSmokeTest()).then(
       () => app.exit(0),
       (err) => {
         console.error('[smoke] FAILED', err)

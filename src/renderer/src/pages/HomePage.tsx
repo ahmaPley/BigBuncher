@@ -35,7 +35,7 @@ export function HomePage() {
               {game.running ? (
                 <span className="chip green">
                   <span className="dot" />
-                  Игра запущена
+                  {game.sessions.length > 1 ? `Запущено игр: ${game.sessions.length}` : 'Игра запущена'}
                 </span>
               ) : (
                 <span className="chip">

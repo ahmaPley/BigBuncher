@@ -16,13 +16,18 @@ import { preflight, sessionEnded, sessionLine, sessionStarted } from '../diagnos
 import { graphicsArgs } from './graphicsService'
 import { ensureJava, javaRequirementOf } from './javaService'
 
-let current: { process: ChildProcess; instanceId: string } | undefined
+/** Running games by instance id — several instances can run at the same time (one process per instance). */
+const running = new Map<string, { process: ChildProcess; startedAt: number }>()
 
 export function getGameState(): GameState {
-  return current
-    ? { running: true, instanceId: current.instanceId, pid: current.process.pid }
-    : { running: false }
+  const sessions = [...running.entries()]
+    .map(([instanceId, r]) => ({ instanceId, pid: r.process.pid, startedAt: r.startedAt }))
+    .sort((a, b) => a.startedAt - b.startedAt)
+  const last = sessions[sessions.length - 1]
+  return { running: sessions.length > 0, instanceId: last?.instanceId, pid: last?.pid, sessions }
 }
+
+export const isInstanceRunning = (instanceId: string): boolean => running.has(instanceId)
 
 export interface LaunchOptions {
   /** Skip the mod check before launch (the player chose "launch anyway", or the culprit search runs). */
@@ -31,7 +36,8 @@ export interface LaunchOptions {
 
 /** Launches the instance. Resolves 'blocked' when the pre-launch check found problems (a diagnosis was emitted). */
 export async function launchInstance(instanceId: string, opts: LaunchOptions = {}): Promise<'started' | 'blocked'> {
-  if (current) throw new Error('Игра уже запущена')
+  // The same instance twice would fight over its worlds (session.lock) and options; other instances are fine.
+  if (running.has(instanceId)) throw new Error('Эта сборка уже запущена')
   if (isInstanceBusy(instanceId)) throw new Error('Сборка ещё устанавливается')
 
   const settings = getSettings()
@@ -82,7 +88,7 @@ export async function launchInstance(instanceId: string, opts: LaunchOptions = {
   }, instanceId)
 
   const child = await launch(options)
-  current = { process: child, instanceId }
+  running.set(instanceId, { process: child, startedAt: Date.now() })
   patchInstance(instanceId, { lastPlayedAt: Date.now() })
   sessionStarted(instanceId)
   emit('game', getGameState())
@@ -90,7 +96,7 @@ export async function launchInstance(instanceId: string, opts: LaunchOptions = {
   const forward = (stream: 'out' | 'err') => (chunk: Buffer) => {
     for (const line of chunk.toString().split(/\r?\n/)) {
       if (!line.trim()) continue
-      sessionLine(line)
+      sessionLine(instanceId, line)
       emit('gameLog', { instanceId, line, stream })
     }
   }
@@ -102,7 +108,7 @@ export async function launchInstance(instanceId: string, opts: LaunchOptions = {
     if (getSettings().afterLaunch === 'minimize') BrowserWindow.getAllWindows().forEach((w) => w.minimize())
   })
   watcher.on('minecraft-exit', ({ code, crashReport }) => {
-    current = undefined
+    if (running.get(instanceId)?.process === child) running.delete(instanceId)
     emit('game', getGameState())
     if (code !== 0) {
       emit('gameLog', { instanceId, line: `Игра завершилась с кодом ${code}`, stream: 'err' })
@@ -116,6 +122,8 @@ export async function launchInstance(instanceId: string, opts: LaunchOptions = {
   return 'started'
 }
 
-export function stopGame(): void {
-  current?.process.kill()
+/** Stops one game, or every running game when no instance is given. */
+export function stopGame(instanceId?: string): void {
+  if (instanceId) running.get(instanceId)?.process.kill()
+  else for (const r of running.values()) r.process.kill()
 }

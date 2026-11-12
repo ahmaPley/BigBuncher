@@ -238,9 +238,13 @@ export interface TaskState {
 }
 
 export interface GameState {
+  /** At least one game is running. */
   running: boolean
+  /** The most recently started game (kept for simple "is something running" UI). */
   instanceId?: string
   pid?: number
+  /** Every running game — several instances can be played at once. */
+  sessions: { instanceId: string; pid?: number; startedAt: number }[]
 }
 
 export interface GameLogLine {

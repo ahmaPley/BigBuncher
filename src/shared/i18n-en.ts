@@ -45,6 +45,8 @@ export const EN: [string, string][] = [
   ['Остановить', 'Stop'],
   ['Запуск…', 'Starting…'],
   ['Игра запущена', 'Game running'],
+  ['Запущено игр: ${}', '%1 games running'],
+  ['Эта сборка уже запущена', 'This instance is already running'],
   ['Нет аккаунта', 'No account'],
   ['Консоль', 'Console'],
   ['Консоль игры', 'Game console'],

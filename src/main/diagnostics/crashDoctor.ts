@@ -34,7 +34,8 @@ interface Session {
   fatalTimer?: NodeJS.Timeout
 }
 
-let session: Session | undefined
+/** One session per running instance (several games can run at once). */
+const sessions = new Map<string, Session>()
 const diagnoses = new Map<string, Diagnosis>()
 const lastByInstance = new Map<string, string>()
 let bisecting = false
@@ -70,8 +71,9 @@ async function contextFor(instance: Instance, log: string, extra: Partial<Analyz
 /* ---------------- session tracking (called by launchService) ---------------- */
 
 export function sessionStarted(instanceId: string): void {
-  if (session?.pendingDisconnect) clearTimeout(session.pendingDisconnect.timer)
-  session = { instanceId, startedAt: Date.now(), lines: [], lastDisconnectAt: 0 }
+  const old = sessions.get(instanceId)
+  if (old?.pendingDisconnect) clearTimeout(old.pendingDisconnect.timer)
+  sessions.set(instanceId, { instanceId, startedAt: Date.now(), lines: [], lastDisconnectAt: 0 })
 }
 
 const CONNECTING = /Connecting to ([^\s,]+),\s*(\d+)/
@@ -91,16 +93,16 @@ const DISCONNECT = [
  */
 const FATAL = /Incompatible mods found!|Mod resolution failed|Missing or unsupported mandatory dependencies|Failed to load mods|LoadingFailedException|ModLoadingException|Mod loading has failed|Encountered an unexpected exception|Preparing crash report with UUID/
 
-export function sessionLine(line: string): void {
-  const s = session
+export function sessionLine(instanceId: string, line: string): void {
+  const s = sessions.get(instanceId)
   if (!s) return
   s.lines.push(line)
   if (s.lines.length > MAX_LOG_LINES) s.lines.splice(0, s.lines.length - MAX_LOG_LINES)
   if (FATAL.test(line) && !s.fatalTimer) {
     // give the loader a moment to print the details, then stop the stuck process
     s.fatalTimer = setTimeout(async () => {
-      const { getGameState, stopGame } = await import('../minecraft/launchService')
-      if (session === s && getGameState().running) stopGame()
+      const { isInstanceRunning, stopGame } = await import('../minecraft/launchService')
+      if (sessions.get(instanceId) === s && isInstanceRunning(instanceId)) stopGame(instanceId)
     }, bisecting ? 1500 : 4000)
   }
   if (bisecting) return
@@ -232,8 +234,8 @@ async function diagnoseRun(instanceId: string, since: number, sessionLines: stri
 }
 
 export async function sessionEnded(instanceId: string, exitCode: number, crashReport?: string): Promise<void> {
-  const s = session?.instanceId === instanceId ? session : undefined
-  session = undefined
+  const s = sessions.get(instanceId)
+  sessions.delete(instanceId)
   if (s?.pendingDisconnect) clearTimeout(s.pendingDisconnect.timer)
   if (bisecting) return
   try {
@@ -466,30 +468,31 @@ async function trial(instanceId: string): Promise<'ok' | 'crash'> {
     }
     let readyTimer: NodeJS.Timeout | undefined
     const off = onAppEvent((event, payload) => {
-      if (event === 'gameLog' && /Sound engine started|Created: \d+x\d+x\d+ minecraft:textures\/atlas\/blocks/.test((payload as { line: string }).line) && !readyTimer) {
+      const logLine = payload as { instanceId: string; line: string }
+      if (event === 'gameLog' && logLine.instanceId === instanceId && /Sound engine started|Created: \d+x\d+x\d+ minecraft:textures\/atlas\/blocks/.test(logLine.line) && !readyTimer) {
         // stay a little longer: some crashes happen right after the menu appears
         readyTimer = setTimeout(() => {
           finish('ok')
-          stopGame()
+          stopGame(instanceId)
         }, 8000)
       }
-      if (event === 'game' && !(payload as { running: boolean }).running) {
+      if (event === 'game' && !(payload as { sessions: { instanceId: string }[] }).sessions.some((x) => x.instanceId === instanceId)) {
         // died before the "stayed alive" timer fired (after it, finish() already resolved 'ok')
         if (readyTimer) clearTimeout(readyTimer)
         finish('crash')
       }
     })
     const timeout = setTimeout(() => {
-      stopGame()
+      stopGame(instanceId)
       finish(new Error('Игра грузится дольше 8 минут — автопоиск остановлен'))
     }, 8 * 60_000)
     launchInstance(instanceId, { skipPreflight: true }).catch((err) => finish(err instanceof Error ? err : new Error(String(err))))
   })
 }
 
-async function waitGameStopped(): Promise<void> {
-  const { getGameState } = await import('../minecraft/launchService')
-  for (let i = 0; i < 40 && getGameState().running; i++) await new Promise((r) => setTimeout(r, 500))
+async function waitGameStopped(instanceId: string): Promise<void> {
+  const { isInstanceRunning } = await import('../minecraft/launchService')
+  for (let i = 0; i < 40 && isInstanceRunning(instanceId); i++) await new Promise((r) => setTimeout(r, 500))
 }
 
 /**
@@ -558,7 +561,7 @@ async function runBisect(instanceId: string): Promise<void> {
       const half = suspects.slice(0, Math.ceil(suspects.length / 2))
       setBisect({ step, detail: `Шаг ${step} из ~${maxSteps}: запуск с ${half.length} из ${suspects.length} подозреваемых модов` })
       enableOnly(withDeps(half))
-      await waitGameStopped()
+      await waitGameStopped(instanceId)
       const r = await trial(instanceId)
       suspects = r === 'crash' ? half : suspects.slice(half.length)
     }
@@ -584,7 +587,7 @@ async function runBisect(instanceId: string): Promise<void> {
   } finally {
     // whatever happened, the player gets their mod list back exactly as it was
     try {
-      await waitGameStopped()
+      await waitGameStopped(instanceId)
       enableOnly(new Set(original))
     } catch {
       /* best effort */

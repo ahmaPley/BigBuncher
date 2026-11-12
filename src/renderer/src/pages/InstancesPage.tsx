@@ -87,7 +87,7 @@ export function InstancesPage() {
 function useInstanceStatus(i: Instance | undefined) {
   const { tasks, game } = useApp()
   const task = tasks.find((t) => t.status === 'running' && t.instanceId === i?.id)
-  const isRunning = game.running && game.instanceId === i?.id
+  const isRunning = Boolean(i && game.sessions.some((s) => s.instanceId === i.id))
   const chip = task ? (
     <span className="chip yellow">
       <span className="dot" />
@@ -109,7 +109,7 @@ function useInstanceStatus(i: Instance | undefined) {
       Не установлена
     </span>
   )
-  return { task, chip, busy: Boolean(task) || game.running }
+  return { task, chip, busy: Boolean(task) || isRunning }
 }
 
 const loaderChip = (i: Instance) => (

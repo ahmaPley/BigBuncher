@@ -87,7 +87,8 @@ export interface BigBuncherApi {
   game: {
     /** 'blocked' = the pre-launch check found problems and sent a `diagnosis` event instead. */
     launch(instanceId: string, opts?: { skipPreflight?: boolean }): Promise<'started' | 'blocked'>
-    stop(): Promise<void>
+    /** Stops one game, or all running games when no instance is given. */
+    stop(instanceId?: string): Promise<void>
     state(): Promise<GameState>
   }
   mods: {

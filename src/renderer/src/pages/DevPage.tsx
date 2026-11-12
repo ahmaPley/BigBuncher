@@ -57,7 +57,7 @@ export function DevPage() {
     await run(fn)
     setBusy(undefined)
   }
-  const runningHere = game.running && game.instanceId === inst.id
+  const runningHere = game.sessions.some((s) => s.instanceId === inst.id)
 
   return (
     <div className="page dev-page">
@@ -200,7 +200,7 @@ export function DevPage() {
               {runningHere ? 'Перезапустить' : 'Запустить'}
             </Button>
             {runningHere && (
-              <Button size="sm" variant="danger" icon="stop" onClick={() => void run(() => api.game.stop())}>
+              <Button size="sm" variant="danger" icon="stop" onClick={() => void run(() => api.game.stop(inst.id))}>
                 Убить процесс
               </Button>
             )}
