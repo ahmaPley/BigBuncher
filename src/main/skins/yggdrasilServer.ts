@@ -2,6 +2,7 @@ import { createHash, generateKeyPairSync, sign, type KeyObject } from 'node:cryp
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import type { SkinModel } from '../../shared/types'
+import { learnName, resolveRemoteProfile } from './skinNetwork'
 
 /**
  * Minimal local Yggdrasil-compatible server (authlib-injector API spec).
@@ -15,14 +16,29 @@ export interface LocalProfile {
 }
 
 const profiles = new Map<string, LocalProfile>()
+const own = new Set<string>() // our accounts (shared with BigBuncher on the LAN); the rest are other players
 const textures = new Map<string, Buffer>()
 let server: Server | undefined
 let rootUrl = ''
 let keys: { privateKey: KeyObject; publicPem: string } | undefined
 
-export function registerProfile(profile: LocalProfile): void {
+export function registerProfile(profile: LocalProfile, isOwn = true): void {
   profiles.set(profile.uuid, profile)
+  if (isOwn) own.add(profile.uuid)
   if (profile.skin) textures.set(textureHash(profile.skin.png), profile.skin.png)
+}
+
+export const ownProfiles = (): LocalProfile[] => [...own].map((u) => profiles.get(u)!).filter(Boolean)
+
+/** Our account, or another player's profile found by skinNetwork (and remembered here, re-signed by our key). */
+async function profileByUuid(uuid: string): Promise<LocalProfile | undefined> {
+  uuid = uuid.replace(/-/g, '').toLowerCase()
+  const known = profiles.get(uuid)
+  if (known) return known
+  const remote = await resolveRemoteProfile(uuid)
+  if (!remote) return undefined
+  registerProfile(remote, false)
+  return remote
 }
 
 const textureHash = (png: Buffer): string => createHash('sha256').update(png).digest('hex')
@@ -93,7 +109,7 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
     })
   }
   if ((m = path.match(/^\/sessionserver\/session\/minecraft\/profile\/([0-9a-f-]{32,36})$/i))) {
-    const profile = profiles.get(m[1].replace(/-/g, '').toLowerCase())
+    const profile = await profileByUuid(m[1])
     return profile ? send(res, 200, profileJson(profile, url.searchParams.get('unsigned') === 'false')) : send(res, 204)
   }
   if ((m = path.match(/^\/textures\/([0-9a-f]{64})$/))) {
@@ -105,16 +121,19 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
     return send(res, 204)
   }
   if (path === '/sessionserver/session/minecraft/hasJoined') {
-    const profile = findByName(url.searchParams.get('username') ?? '')
+    // A player joins our LAN world / server: we learn their nick, then find their skin.
+    const username = url.searchParams.get('username') ?? ''
+    const profile = findByName(username) ?? (username ? await profileByUuid(learnName(username)) : undefined)
     return profile ? send(res, 200, profileJson(profile, true)) : send(res, 204)
   }
   if (path === '/api/profiles/minecraft' && req.method === 'POST') {
+    // Nick → uuid (player heads, /msg…): unknown nicks get their offline uuid, as on an offline server.
     const names: string[] = JSON.parse((await readBody(req)) || '[]')
-    return send(res, 200, names.map(findByName).filter(Boolean).map((p) => ({ id: p!.uuid, name: p!.name })))
+    return send(res, 200, names.map((n) => findByName(n) ?? { uuid: learnName(n), name: n }).map((p) => ({ id: p.uuid, name: p.name })))
   }
   if ((m = path.match(/^\/api\/users\/profiles\/minecraft\/(\w+)$/))) {
     const profile = findByName(m[1])
-    return profile ? send(res, 200, { id: profile.uuid, name: profile.name }) : send(res, 204)
+    return send(res, 200, profile ? { id: profile.uuid, name: profile.name } : { id: learnName(m[1]), name: m[1] })
   }
   if (path === '/minecraftservices/player/attributes') {
     return send(res, 200, {

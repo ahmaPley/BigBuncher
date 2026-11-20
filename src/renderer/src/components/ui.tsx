@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState, type ButtonHTMLAttributes, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type ButtonHTMLAttributes, type CSSProperties, type ReactNode, type RefObject } from 'react'
+import { createPortal } from 'react-dom'
 import type { BlockIcon as BlockIconId } from '../../../shared/types'
 import { BLOCK_ICONS } from '../lib/assets'
 import { Icon, type IconName } from './Icon'
@@ -105,11 +106,14 @@ export function Dropdown<T>({
 }) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+  const pos = usePortalPosition(ref, open, up)
 
   useEffect(() => {
     if (!open) return
     const close = (e: MouseEvent): void => {
-      if (!ref.current?.contains(e.target as Node)) setOpen(false)
+      const t = e.target as Node
+      if (!ref.current?.contains(t) && !menuRef.current?.contains(t)) setOpen(false)
     }
     window.addEventListener('mousedown', close)
     return () => window.removeEventListener('mousedown', close)
@@ -121,8 +125,8 @@ export function Dropdown<T>({
         {renderTrigger(selected)}
         <Icon name="chevronDown" className="chev" />
       </button>
-      {open && (
-        <div className={`dropdown-menu ${up ? 'up' : ''}`}>
+      {open && pos && createPortal(
+        <div ref={menuRef} className={`dropdown-menu portal ${up ? 'up' : ''}`} style={pos}>
           {items.length === 0 && <div className="empty" style={{ padding: 16 }}>{empty}</div>}
           {items.map((item) => (
             <button
@@ -137,10 +141,42 @@ export function Dropdown<T>({
               {renderItem(item)}
             </button>
           ))}
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   )
+}
+
+/**
+ * Menus are drawn in a portal on <body> with fixed coordinates of their trigger, so cards, blur and transforms
+ * around them can never cover them. Follows scrolling/resizing while open.
+ */
+export function usePortalPosition(anchor: RefObject<HTMLElement | null>, open: boolean, up?: boolean, alignRight?: boolean): CSSProperties | undefined {
+  const [pos, setPos] = useState<CSSProperties>()
+  useLayoutEffect(() => {
+    if (!open) return setPos(undefined)
+    const place = (): void => {
+      const r = anchor.current?.getBoundingClientRect()
+      if (!r) return
+      setPos({
+        position: 'fixed',
+        left: alignRight ? undefined : r.left,
+        right: alignRight ? window.innerWidth - r.right : undefined,
+        width: alignRight ? undefined : r.width,
+        top: up ? undefined : r.bottom + 6,
+        bottom: up ? window.innerHeight - r.top + 6 : undefined
+      })
+    }
+    place()
+    window.addEventListener('resize', place)
+    window.addEventListener('scroll', place, true)
+    return () => {
+      window.removeEventListener('resize', place)
+      window.removeEventListener('scroll', place, true)
+    }
+  }, [open, up, alignRight, anchor])
+  return pos
 }
 
 export function EmptyState({ icon, title, children }: { icon: BlockIconId; title: string; children?: ReactNode }) {

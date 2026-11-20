@@ -2,6 +2,9 @@ import { ipcMain } from 'electron'
 import { API_METHODS, type BigBuncherApi } from '../shared/ipc'
 import * as accounts from './auth/accountService'
 import { listTasks } from './core/tasks'
+import { syncDownloadWatcher } from './downloads/downloadWatcher'
+import { bridgeCall } from './launchers/launcherBridge'
+import * as launchers from './launchers/launcherService'
 import * as dev from './dev/devService'
 import * as doctor from './diagnostics/crashDoctor'
 import { detectGraphics, versionHasGraphicsChoice } from './minecraft/graphicsService'
@@ -32,6 +35,7 @@ const handlers: BigBuncherApi = {
     update: async (patch) => {
       const next = updateSettings(patch)
       if (patch.devMode !== undefined) dev.startDevWatchers()
+      if (patch.watchDownloads !== undefined) syncDownloadWatcher()
       return next
     },
     detectJava: detectInstalledJava
@@ -72,6 +76,7 @@ const handlers: BigBuncherApi = {
     setEnabled: async (id, file, enabled) => mods.setModEnabled(id, file, enabled),
     remove: async (id, file) => mods.removeMod(id, file),
     addFromFile: mods.addModsFromFiles,
+    installDownloaded: async (id, path, site, url) => mods.installDownloadedMod(id, path, site, url),
     openFolder: mods.openModsFolder
   },
   skins: {
@@ -151,7 +156,16 @@ const handlers: BigBuncherApi = {
     importFile: share.importShareFile
   },
   server: { check: checkServer },
-  tasks: { list: async () => listTasks() }
+  tasks: { list: async () => listTasks() },
+  launchers: {
+    list: async () => launchers.listLaunchers(),
+    installZip: launchers.installLauncherZip,
+    remove: launchers.removeLauncher,
+    activate: async (id) => launchers.activateLauncher(id),
+    setIcon: async (id, key) => launchers.setLauncherIcon(id, key),
+    setWindowIcon: async (dataUrl) => launchers.setWindowIcon(dataUrl),
+    bridge: bridgeCall
+  }
 }
 
 export function registerIpcHandlers(): void {

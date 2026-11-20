@@ -201,6 +201,29 @@ src/renderer/src/
 логов и полей ввода; язык кэшируется в localStorage, чтобы первый кадр был сразу на нужном языке. Возврат на русский
 перезагружает окно.
 
+### More launchers (`src/main/launchers/`)
+
+Лаунчеры других игр ставятся из zip и показываются вместо интерфейса Minecraft (`Settings.activeLauncher`,
+`'minecraft'` = встроенный). Иконка на выбор у каждого (`Settings.launcherIcons[id]`), у Minecraft: лого + блоки;
+renderer рисует выбранную иконку на canvas и ставит её окну (`launchers.setWindowIcon`).
+
+- **Формат zip:** в корне (или в единственной папке) `launcher.json`:
+  `{ id, name, version, author, description, entry, backend?, accent, icons: [{ key, name, path }] }`.
+  `launcherService` распаковывает во временную папку (без путей за её пределы, лимиты на размер/число файлов),
+  проверяет манифест, спрашивает пользователя и кладёт в `userData/launchers/<id>`; старая версия и удаление в Корзину.
+- **Файлы:** `bblauncher://<id>/<path>` (`launcherProtocol.ts`), у каждого лаунчера свой origin; CORS `*`, чтобы
+  иконку можно было нарисовать на canvas. Фрейм не может уйти на другой адрес (`will-frame-navigate`).
+- **Интерфейс:** `PluginHost.tsx` показывает `entry` в iframe с sandbox (без Node/IPC). Общение через postMessage
+  (`{__bb:'req'|'res'|'event'}`); id лаунчера подставляет хост, а не фрейм.
+- **Мост** (`launcherBridge.ts`) — всё, что лаунчер может сделать на ПК: `context`, `backend(args)` (только своя
+  программа из манифеста, ответ JSON в stdout, `{"error"}` → Error), `getData/setData` (`userData/launcher-data/<id>.json`,
+  переживает переустановку), `pickFiles`, `pickDirectory`, `openPath` (только папки и .log/.txt/.json/.md),
+  `openExternal` (http/https), `setIcon`, `switchLauncher`, `gameStarted` (настройка «после запуска»).
+- **Тест:** `BIGBUNCHER_SMOKE=launchers BIGBUNCHER_LAUNCHER_ZIP=<zip>` — установка без диалогов, протокол, мост,
+  отказ от zip-slip, удаление. Скриншоты на отдельной папке настроек: `BIGBUNCHER_USERDATA=<папка>`; страница
+  лаунчера: `BIGBUNCHER_PAGE=home/plugin=<страница>` (синтетические клики во фрейм не доходят).
+- Первый лаунчер — Slime Rancher (исходники в `C:\TambiStudio\slime-rancher-mod\launcher-plugin`, бэкенд TambiSlime.exe).
+
 ## Точки расширения
 
 | Что добавить | Где |

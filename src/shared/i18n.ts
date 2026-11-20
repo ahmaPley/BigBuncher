@@ -9,8 +9,9 @@
  * No runtime imports: this file is shared by both processes.
  */
 import { EN } from './i18n-en'
+import { ES_JA } from './i18n-es-ja'
 
-export type Language = 'ru' | 'en'
+export type Language = 'ru' | 'en' | 'es' | 'ja'
 
 const CYR = /[А-Яа-яЁё]/
 const exact = new Map<string, string>()
@@ -78,7 +79,41 @@ function translatePart(part: string, depth: number): string {
 /** Guillemets read oddly in English UI text. */
 const quotes = (s: string): string => s.replace(/«/g, '“').replace(/»/g, '”')
 
+/* ---------- Spanish / Japanese: a second step English → es/ja (i18n-es-ja.ts) ---------- */
+
+const second: Record<'es' | 'ja', { exact: Map<string, string>; patterns: { re: RegExp; out: string }[] }> = {
+  es: { exact: new Map(), patterns: [] },
+  ja: { exact: new Map(), patterns: [] }
+}
+for (const [en, es, ja] of ES_JA) {
+  for (const [lang, out] of [['es', es], ['ja', ja]] as const) {
+    if (!en.includes('%')) second[lang].exact.set(norm(en), out)
+    else second[lang].patterns.push({ re: new RegExp(`^${norm(en).split(/%\d/).map(escape).join('([\\s\\S]*?)')}$`), out })
+  }
+}
+
+function toSecond(lang: 'es' | 'ja', english: string): string {
+  const t = second[lang]
+  const lead = /^\s*/.exec(english)![0]
+  const trail = /\s*$/.exec(english)![0]
+  const core = norm(english)
+  const hit = t.exact.get(core)
+  if (hit !== undefined) return lead + hit + trail
+  for (const p of t.patterns) {
+    const m = p.re.exec(core)
+    if (m) return lead + p.out.replace(/%(\d)/g, (_, i: string) => t.exact.get(norm(m[Number(i)] ?? '')) ?? m[Number(i)] ?? '') + trail
+  }
+  return english // not translated yet — English is better than nothing
+}
+
+/** Russian source (or already-English text) → the given language. */
+export function translateTo(language: Language, text: string): string {
+  if (language === 'ru') return text
+  const en = translate(text)
+  return language === 'en' ? en : toSecond(language, en)
+}
+
 /** Picks the text for the current language (main process). */
 export function tr(language: Language, text: string): string {
-  return language === 'en' ? translate(text) : text
+  return translateTo(language, text)
 }

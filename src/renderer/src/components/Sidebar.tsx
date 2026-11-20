@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { logo } from '../lib/assets'
+import { iconOf, isPixelIcon, MINECRAFT } from '../lib/launchers'
 import { useApp, type PageId } from '../lib/appState'
 import { Icon, type IconName } from './Icon'
 import { SkinHead } from './SkinHead'
@@ -18,7 +18,8 @@ const NAV: { id: PageId; label: string; icon: IconName }[] = [
 ]
 
 export function Sidebar() {
-  const { page, navigate, instances, multiPacks, tasks, selectedAccount, skinOf, setAccountsOpen, update, run, settings } = useApp()
+  const { page, navigate, instances, multiPacks, tasks, selectedAccount, skinOf, setAccountsOpen, update, run, settings, launchers, setLaunchersOpen } = useApp()
+  const brandIcon = iconOf(MINECRAFT, settings)
   const nav = NAV.filter((n) => n.id !== 'dev' || settings?.devMode)
   const [installing, setInstalling] = useState(false)
   // A multi-pack counts once, however many states it has.
@@ -28,7 +29,7 @@ export function Sidebar() {
   return (
     <aside className="sidebar">
       <div className="brand">
-        <img src={logo} alt="" draggable={false} />
+        <img className={isPixelIcon(brandIcon) ? 'pixel' : ''} src={brandIcon} alt="" draggable={false} />
         BigBuncher
       </div>
 
@@ -43,6 +44,11 @@ export function Sidebar() {
       </nav>
 
       <div style={{ marginTop: 'auto' }}>
+        <button className="nav-item more-launchers" onClick={() => setLaunchersOpen(true)}>
+          <Icon name="grid" />
+          More launchers
+          {launchers.length > 1 && <span className="nav-badge">{launchers.length - 1}</span>}
+        </button>
         {update?.available && (
           <div className="update-banner">
             <div className="title">Доступно обновление {update.latestVersion}</div>

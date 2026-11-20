@@ -18,7 +18,7 @@ const PROVIDERS: ModProvider[] = [modrinthProvider, curseforgeProvider]
 const DISABLED_SUFFIX = '.disabled'
 
 export type ModMeta = Omit<ResolvedModFile, 'url' | 'dependencies' | 'fileName'>
-type ModIndex = { files: Record<string, ModMeta> }
+type ModIndex = { files: Record<string, ModMeta>; sources?: Record<string, { site?: string; url?: string }> }
 
 export const modsDir = (instanceId: string): string => join(instanceDir(instanceId), 'mods')
 
@@ -62,7 +62,9 @@ export function searchMods(query: ModSearchQuery): Promise<ModSearchResult> {
 export function listInstalledMods(instanceId: string): InstalledMod[] {
   const dir = modsDir(instanceId)
   if (!existsSync(dir)) return []
-  const index = indexStore(instanceId).get().files
+  const store = indexStore(instanceId).get()
+  const index = store.files
+  const sources = store.sources ?? {}
   return readdirSync(dir)
     .filter((f) => f.endsWith('.jar') || f.endsWith(`.jar${DISABLED_SUFFIX}`))
     .map((file) => {
@@ -76,7 +78,8 @@ export function listInstalledMods(instanceId: string): InstalledMod[] {
         provider: meta?.provider,
         projectId: meta?.projectId,
         iconUrl: meta?.iconUrl,
-        sizeBytes: statSync(join(dir, file)).size
+        sizeBytes: statSync(join(dir, file)).size,
+        source: sources[fileName]?.site
       }
     })
     .sort((a, b) => a.title.localeCompare(b.title))
@@ -158,6 +161,19 @@ export async function addModsFromFiles(instanceId: string): Promise<InstalledMod
   })
   mkdirSync(modsDir(instanceId), { recursive: true })
   for (const file of picked.filePaths) copyFileSync(file, join(modsDir(instanceId), basename(file)))
+  return listInstalledMods(instanceId)
+}
+
+/** A jar downloaded in a browser → into the instance, remembering which site it came from. */
+export function installDownloadedMod(instanceId: string, path: string, site?: string, url?: string): InstalledMod[] {
+  moddableInstance(instanceId)
+  if (!path.toLowerCase().endsWith('.jar') || !existsSync(path)) throw new Error('Это не мод Minecraft (.jar)')
+  mkdirSync(modsDir(instanceId), { recursive: true })
+  const fileName = basename(path)
+  copyFileSync(path, join(modsDir(instanceId), fileName))
+  indexStore(instanceId).update((data) => {
+    data.sources = { ...(data.sources ?? {}), [fileName]: { site, url } }
+  })
   return listInstalledMods(instanceId)
 }
 

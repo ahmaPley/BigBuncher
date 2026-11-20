@@ -1,7 +1,7 @@
 import { app } from 'electron'
 import { totalmem } from 'node:os'
 import { join } from 'node:path'
-import type { Settings } from '../../shared/types'
+import { MINECRAFT_LAUNCHER_ID, type Settings } from '../../shared/types'
 import { JsonStore } from '../core/jsonStore'
 import { emit } from '../core/events'
 
@@ -21,7 +21,11 @@ function defaults(): Settings {
     preflightCheck: true,
     devMode: false,
     graphicsApi: 'ask',
-    language: 'en'
+    language: 'en',
+    activeLauncher: MINECRAFT_LAUNCHER_ID,
+    launcherIcons: {},
+    launcherAccents: {},
+    watchDownloads: true
   }
 }
 
@@ -46,7 +50,10 @@ function sanitize(s: Settings): Settings {
   return {
     ...s,
     gameDir: s.gameDir.trim() || defaults().gameDir,
-    language: s.language === 'ru' ? 'ru' : 'en',
+    language: (['ru', 'en', 'es', 'ja'] as const).includes(s.language) ? s.language : 'en',
+    activeLauncher: typeof s.activeLauncher === 'string' && s.activeLauncher ? s.activeLauncher : MINECRAFT_LAUNCHER_ID,
+    launcherIcons: s.launcherIcons && typeof s.launcherIcons === 'object' ? s.launcherIcons : {},
+    launcherAccents: s.launcherAccents && typeof s.launcherAccents === 'object' ? s.launcherAccents : {},
     maxRamMb,
     minRamMb: clamp(Math.round(s.minRamMb), 256, maxRamMb),
     resolution: {

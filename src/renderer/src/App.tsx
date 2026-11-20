@@ -1,4 +1,9 @@
-import type { ComponentType } from 'react'
+import { useEffect, type ComponentType } from 'react'
+import { applyAccent } from './lib/theme'
+import { MINECRAFT_LAUNCHER_ID } from '../../shared/types'
+import { LaunchersModal, useWindowIcon } from './components/Launchers'
+import { PluginHost } from './components/PluginHost'
+import { DownloadPrompt } from './components/DownloadPrompt'
 import { AccountsModal } from './components/AccountsModal'
 import { BisectBanner, DoctorModal, GraphicsModal } from './components/Doctor'
 import { DevPage } from './pages/DevPage'
@@ -27,8 +32,21 @@ const PAGES: Record<PageId, ComponentType> = {
 }
 
 export function App() {
-  const { page, accountsOpen, settings } = useApp()
+  const { page, accountsOpen, settings, activeLauncher, launchersOpen } = useApp()
   const Page = PAGES[page]
+  useWindowIcon()
+  const accent = settings?.launcherAccents[MINECRAFT_LAUNCHER_ID]
+  useEffect(() => applyAccent(activeLauncher.id === MINECRAFT_LAUNCHER_ID ? accent : undefined), [accent, activeLauncher.id])
+
+  if (settings && activeLauncher.id !== MINECRAFT_LAUNCHER_ID) {
+    return (
+      <div className="app plugin-mode">
+        <PluginHost key={activeLauncher.id} launcher={activeLauncher} />
+        {launchersOpen && <LaunchersModal />}
+        <Toasts />
+      </div>
+    )
+  }
 
   return (
     <div className="app">
@@ -37,7 +55,9 @@ export function App() {
         <TitleBar />
         {settings ? <Page key={page} /> : <div className="page" />}
       </main>
+      {launchersOpen && <LaunchersModal />}
       {accountsOpen && <AccountsModal />}
+      <DownloadPrompt />
       <DoctorModal />
       <GraphicsModal />
       <BisectBanner />

@@ -8,7 +8,8 @@ import { fetchBuffer, fetchJson, HttpError } from '../core/http'
 import { skinsDir } from '../core/paths'
 import { assertValidSkin, getSkinMeta, readSkinPng, saveSkin } from './skinLibrary'
 import { ensureAuthlibInjector } from './authlibInjector'
-import { ensureYggdrasilServer, prefetchedMetadata, registerProfile } from './yggdrasilServer'
+import { startSkinSharing } from './skinNetwork'
+import { ensureYggdrasilServer, ownProfiles, prefetchedMetadata, registerProfile } from './yggdrasilServer'
 
 export { listSkins, removeSkin } from './skinLibrary'
 
@@ -114,13 +115,15 @@ export interface SkinInjection {
  * server and returns the java-agent settings that force the skin inside the game.
  */
 export async function prepareSkinInjection(account: Account): Promise<SkinInjection | undefined> {
-  if (account.type !== 'offline' || !account.skinId) return undefined
-  const png = readSkinPng(account.skinId)
-  const meta = getSkinMeta(account.skinId)
-  if (!png || !meta) return undefined
-  assertValidSkin(png)
+  // Every offline account goes through the local server, even without its own skin:
+  // that is how it sees the skins of OTHER players (skinNetwork.ts).
+  if (account.type !== 'offline') return undefined
+  const png = account.skinId ? readSkinPng(account.skinId) : undefined
+  const meta = account.skinId ? getSkinMeta(account.skinId) : undefined
+  if (png) assertValidSkin(png)
 
   const [jar, server] = await Promise.all([ensureAuthlibInjector(), ensureYggdrasilServer()])
-  registerProfile({ uuid: account.uuid, name: account.name, skin: { png, model: meta.model } })
+  registerProfile({ uuid: account.uuid, name: account.name, skin: png && meta ? { png, model: meta.model } : undefined })
+  await startSkinSharing(ownProfiles).catch((err) => console.warn('[skins] LAN sharing off:', err))
   return { jar, server, prefetched: await prefetchedMetadata() }
 }

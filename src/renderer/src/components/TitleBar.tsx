@@ -1,15 +1,24 @@
+import { MINECRAFT_LAUNCHER_ID } from '../../../shared/types'
 import { api } from '../lib/api'
 import { useApp } from '../lib/appState'
 import { Icon } from './Icon'
+import { LauncherSwitcher } from './Launchers'
 
 export function TitleBar() {
-  const { navigate } = useApp()
+  const { navigate, activeLauncher } = useApp()
+  // Other launchers have their own settings inside their interface.
+  const minecraft = activeLauncher.id === MINECRAFT_LAUNCHER_ID
   return (
     <div className="titlebar">
-      <button title="Настройки" onClick={() => navigate('settings')}>
-        <Icon name="settings" size={17} />
-      </button>
-      <span className="divider" />
+      <LauncherSwitcher />
+      {minecraft && (
+        <>
+          <button title="Настройки" onClick={() => navigate('settings')}>
+            <Icon name="settings" size={17} />
+          </button>
+          <span className="divider" />
+        </>
+      )}
       <button title="Свернуть" onClick={() => void api.window.minimize()}>
         <Icon name="minus" size={17} />
       </button>

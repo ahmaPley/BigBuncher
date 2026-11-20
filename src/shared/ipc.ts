@@ -17,6 +17,7 @@ import type {
   DevProfile,
   DevProjectInfo,
   Diagnosis,
+  DownloadedFile,
   FixAction,
   FixResult,
   GraphicsInfo,
@@ -25,6 +26,7 @@ import type {
   GameState,
   Instance,
   InstalledMod,
+  LauncherInfo,
   LoaderId,
   LoaderVersion,
   McVersion,
@@ -102,6 +104,8 @@ export interface BigBuncherApi {
     setEnabled(instanceId: string, fileName: string, enabled: boolean): Promise<InstalledMod[]>
     remove(instanceId: string, fileName: string): Promise<InstalledMod[]>
     addFromFile(instanceId: string): Promise<InstalledMod[]>
+    /** A jar the browser downloaded (DownloadedFile.path) → into the instance, remembering the site. */
+    installDownloaded(instanceId: string, path: string, site?: string, url?: string): Promise<InstalledMod[]>
     openFolder(instanceId: string): Promise<void>
   }
   skins: {
@@ -193,6 +197,19 @@ export interface BigBuncherApi {
   tasks: {
     list(): Promise<TaskState[]>
   }
+  /** More launchers: other games' launchers installed from zips, shown in place of the Minecraft UI. */
+  launchers: {
+    list(): Promise<LauncherInfo[]>
+    /** Picks a zip, asks for confirmation and installs it; null = cancelled. */
+    installZip(): Promise<LauncherInfo | null>
+    remove(id: string): Promise<LauncherInfo[]>
+    activate(id: string): Promise<Settings>
+    setIcon(id: string, key: string): Promise<Settings>
+    /** Window/taskbar icon of the active launcher (PNG data URL drawn by the renderer). */
+    setWindowIcon(dataUrl: string): Promise<void>
+    /** A call from a launcher's frame through the bridge (see main/launchers/launcherBridge.ts). */
+    bridge(id: string, method: string, args: unknown[]): Promise<unknown>
+  }
 }
 
 export interface ShareImportResult {
@@ -210,7 +227,7 @@ export const API_METHODS: MethodNames<BigBuncherApi> = {
   versions: ['listMinecraft', 'listLoaderVersions', 'listLoaderGameVersions'],
   instances: ['list', 'create', 'rename', 'remove', 'repair', 'openFolder', 'select'],
   game: ['launch', 'stop', 'state'],
-  mods: ['providers', 'search', 'install', 'listInstalled', 'setEnabled', 'remove', 'addFromFile', 'openFolder'],
+  mods: ['providers', 'search', 'install', 'listInstalled', 'setEnabled', 'remove', 'addFromFile', 'installDownloaded', 'openFolder'],
   skins: ['list', 'importFile', 'importByUsername', 'save', 'remove', 'applyToAccount', 'exportFile', 'defaultSkin'],
   resourcepacks: ['listShared', 'addShared', 'removeShared', 'setAutoEnable', 'listForInstance', 'addToInstance', 'removeFromInstance', 'openSharedFolder', 'openInstanceFolder'],
   multipacks: ['list', 'create', 'addState', 'switchState', 'rename', 'renameState', 'removeState', 'dissolve'],
@@ -221,7 +238,8 @@ export const API_METHODS: MethodNames<BigBuncherApi> = {
   dev: ['getProfile', 'saveProfile', 'pickProject', 'inspectProject', 'build', 'cancelBuild', 'deploy', 'buildAndRun', 'restart', 'inspectMods', 'listWorlds', 'openFolder'],
   share: ['createCode', 'saveFile', 'preview', 'importCode', 'openFile', 'importFile'],
   server: ['check'],
-  tasks: ['list']
+  tasks: ['list'],
+  launchers: ['list', 'installZip', 'remove', 'activate', 'setIcon', 'setWindowIcon', 'bridge']
 }
 
 /** Push events from main to renderer. */
@@ -237,6 +255,8 @@ export interface AppEvents {
   diagnosis: Diagnosis
   bisect: BisectState
   devLog: DevLogLine
+  launchersChanged: LauncherInfo[]
+  downloadedMod: DownloadedFile
 }
 
 export type AppEventName = keyof AppEvents

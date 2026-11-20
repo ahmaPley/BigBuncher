@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import type { Account, BisectState, DevLogLine, Diagnosis, GameLogLine, GameState, Instance, LoaderId, MultiPack, Settings, SkinEntry, TaskState, UpdateInfo } from '../../../shared/types'
+import type { Account, BisectState, DevLogLine, Diagnosis, GameLogLine, GameState, Instance, LauncherInfo, LoaderId, MultiPack, Settings, SkinEntry, TaskState, UpdateInfo } from '../../../shared/types'
 import { api } from './api'
+import { MINECRAFT } from './launchers'
 import { errorText } from './format'
 import { applyLanguage } from './i18nDom'
 
@@ -54,6 +55,13 @@ interface AppState {
   bisect?: BisectState
   devLogs: DevLogLine[]
   clearDevLogs(): void
+
+  /** Minecraft first, then launchers installed from zips. */
+  launchers: LauncherInfo[]
+  /** The launcher the window shows (falls back to Minecraft if the chosen one was removed). */
+  activeLauncher: LauncherInfo
+  launchersOpen: boolean
+  setLaunchersOpen(open: boolean): void
 }
 
 const Ctx = createContext<AppState | null>(null)
@@ -77,6 +85,8 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   const [diagnosis, setDiagnosis] = useState<Diagnosis>()
   const [bisect, setBisect] = useState<BisectState>()
   const [devLogs, setDevLogs] = useState<DevLogLine[]>([])
+  const [plugins, setPlugins] = useState<LauncherInfo[]>([])
+  const [launchersOpen, setLaunchersOpen] = useState(false)
   const toastId = useRef(0)
   const settingsRef = useRef<Settings | undefined>(undefined)
   settingsRef.current = settings
@@ -146,6 +156,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     )
     void refreshSkins()
     api.skins.defaultSkin().then(setDefaultSkin, () => undefined)
+    api.launchers.list().then(setPlugins, () => undefined)
 
     const offs = [
       api.on('settingsChanged', setSettings),
@@ -158,6 +169,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       api.on('diagnosis', setDiagnosis),
       api.on('bisect', setBisect),
       api.on('devLog', (line) => setDevLogs((l) => [...l.slice(-1500), line])),
+      api.on('launchersChanged', setPlugins),
       api.on('task', (task) => {
         setTasks((list) => [...list.filter((t) => t.id !== task.id), task])
         if (task.status === 'error') toast('error', task.title, task.error)
@@ -170,7 +182,12 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   const value = useMemo<AppState>(() => {
     const selectedAccount = accounts.find((a) => a.uuid === settings?.selectedAccountId) ?? accounts[0]
     const selectedInstance = instances.find((i) => i.id === settings?.selectedInstanceId) ?? instances[0]
+    const launchers = [MINECRAFT, ...plugins]
     return {
+      launchers,
+      activeLauncher: launchers.find((l) => l.id === settings?.activeLauncher) ?? MINECRAFT,
+      launchersOpen,
+      setLaunchersOpen,
       page,
       navigate(next, opts) {
         setPendingLoader(opts?.loader)
@@ -214,7 +231,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       devLogs,
       clearDevLogs: () => setDevLogs([])
     }
-  }, [page, pendingLoader, settings, accounts, instances, multiPacks, update, skins, defaultSkin, game, tasks, logs, accountsOpen, refreshSkins, toast, toasts, dismissToast, run, launch, graphicsAsk, diagnosis, bisect, devLogs])
+  }, [page, pendingLoader, settings, accounts, instances, multiPacks, update, skins, defaultSkin, game, tasks, logs, accountsOpen, refreshSkins, toast, toasts, dismissToast, run, launch, graphicsAsk, diagnosis, bisect, devLogs, plugins, launchersOpen])
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>
 }

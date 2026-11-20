@@ -82,7 +82,42 @@ export interface Settings {
    */
   graphicsApi: GraphicsApiChoice
   /** Interface language: English by default, Russian can be switched on in settings. */
-  language: 'en' | 'ru'
+  language: 'en' | 'ru' | 'es' | 'ja'
+  /** Which launcher the window shows: MINECRAFT_LAUNCHER_ID or the id of an installed launcher (More launchers). */
+  activeLauncher: string
+  /** Chosen icon per launcher id (keys of LauncherInfo.icons; Minecraft: 'logo' or a BlockIcon). */
+  launcherIcons: Record<string, string>
+  /** Accent colour per launcher id (CSS hex); empty = the launcher's own colour. */
+  launcherAccents: Record<string, string>
+  /** Offer to install mods downloaded in any browser (watches the Downloads folder). */
+  watchDownloads: boolean
+}
+
+/** A mod-like file that appeared in Downloads; site/url come from Windows' Zone.Identifier. */
+export interface DownloadedFile {
+  path: string
+  fileName: string
+  ext: string
+  sizeBytes: number
+  site?: string
+  url?: string
+}
+
+export const MINECRAFT_LAUNCHER_ID = 'minecraft'
+
+/** A launcher installed from a zip (More launchers). Its files are served as bblauncher://<id>/<path>. */
+export interface LauncherInfo {
+  id: string
+  name: string
+  version: string
+  author: string
+  description: string
+  /** URL of the launcher's own interface (shown in a sandboxed frame). */
+  entryUrl: string
+  /** Icons the user can pick from; the first one is the default. */
+  icons: { key: string; name: string; url: string }[]
+  /** Accent colour for cards and the switcher (CSS colour). */
+  accent: string
 }
 
 export type GraphicsApiChoice = 'ask' | 'auto' | 'vulkan' | 'opengl'
@@ -342,6 +377,8 @@ export interface InstalledMod {
   projectId?: string
   iconUrl?: string
   sizeBytes: number
+  /** Site a manually downloaded jar came from ("Modrinth", "CurseForge", a domain…). */
+  source?: string
 }
 
 export interface ModProviderInfo {

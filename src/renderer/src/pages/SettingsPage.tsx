@@ -6,11 +6,14 @@ import { api } from '../lib/api'
 import { BACKGROUNDS, banner } from '../lib/assets'
 import { useApp } from '../lib/appState'
 import { formatRam } from '../lib/format'
+import { isPixelIcon, MINECRAFT } from '../lib/launchers'
+import { LauncherIcon } from '../components/Launchers'
+import { ACCENT_PRESETS } from '../lib/theme'
 
 type JavaOption = { path: string; version: string }
 
 export function SettingsPage() {
-  const { settings, run, toast, update: updateInfo } = useApp()
+  const { settings, run, toast, update: updateInfo, launchers, activeLauncher, setLaunchersOpen } = useApp()
   const [checking, setChecking] = useState(false)
   const [totalMb, setTotalMb] = useState(8192)
   const [javas, setJavas] = useState<JavaOption[]>()
@@ -56,7 +59,7 @@ export function SettingsPage() {
         <div className="card" style={{ gridColumn: '1 / -1' }}>
           <div className="setting-row" style={{ borderTop: 0, paddingTop: 0 }}>
             <div className="card-title" style={{ margin: 0 }} data-no-i18n>
-              <Icon name="globe" /> {s.language === 'ru' ? 'Язык интерфейса' : 'Interface language'}
+              <Icon name="globe" /> {{ ru: 'Язык интерфейса', en: 'Interface language', es: 'Idioma de la interfaz', ja: '表示言語' }[s.language]}
             </div>
             <span className="spacer" />
             <div data-no-i18n>
@@ -65,8 +68,85 @@ export function SettingsPage() {
                 onChange={(v) => update({ language: v })}
                 options={[
                   { value: 'en', label: 'English' },
-                  { value: 'ru', label: 'Русский' }
+                  { value: 'ru', label: 'Русский' },
+                  { value: 'es', label: 'Español' },
+                  { value: 'ja', label: '日本語' }
                 ]}
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="card" style={{ gridColumn: '1 / -1' }}>
+          <div className="card-title">
+            <Icon name="grid" /> Лаунчеры
+            <span className="spacer" />
+            <Button size="sm" icon="plus" onClick={() => setLaunchersOpen(true)}>
+              More launchers
+            </Button>
+          </div>
+          <div className="field" style={{ marginBottom: 16 }}>
+            <label>Какой лаунчер открыт</label>
+            <Dropdown
+              items={launchers}
+              selected={activeLauncher}
+              keyOf={(l) => l.id}
+              onSelect={(l) => void run(() => api.launchers.activate(l.id))}
+              renderTrigger={(l) =>
+                l && (
+                  <span className="row" style={{ gap: 10 }}>
+                    <LauncherIcon launcher={l} size={22} /> {l.name}
+                  </span>
+                )
+              }
+              renderItem={(l) => (
+                <span className="row" style={{ gap: 10 }}>
+                  <LauncherIcon launcher={l} size={22} /> {l.name} {l.version && <span className="dim">v{l.version}</span>}
+                </span>
+              )}
+            />
+          </div>
+          <div className="setting-row" style={{ borderTop: 0, paddingTop: 0, marginBottom: 16 }}>
+            <div>
+              <div>Ловить моды из браузера</div>
+              <div className="dim" style={{ fontSize: 12 }}>
+                Скачал мод в любом браузере — BigBuncher предложит поставить его в сборку и запомнит, откуда он.
+              </div>
+            </div>
+            <span className="spacer" />
+            <Toggle on={s.watchDownloads !== false} onChange={(v) => update({ watchDownloads: v })} />
+          </div>
+          <div className="field">
+            <label>Иконка лаунчера Minecraft</label>
+            <div className="launcher-icon-picker">
+              {MINECRAFT.icons.map((i) => (
+                <button
+                  key={i.key}
+                  title={i.name}
+                  className={(s.launcherIcons[MINECRAFT.id] ?? 'logo') === i.key ? 'active' : ''}
+                  onClick={() => void run(() => api.launchers.setIcon(MINECRAFT.id, i.key))}
+                >
+                  <img className={isPixelIcon(i.url) ? 'pixel' : ''} src={i.url} alt="" draggable={false} />
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="field" style={{ marginTop: 16 }}>
+            <label>Цвет темы</label>
+            <div className="accent-picker">
+              {ACCENT_PRESETS.map((c, i) => (
+                <button
+                  key={c}
+                  style={{ background: c }}
+                  className={(s.launcherAccents[MINECRAFT.id] || ACCENT_PRESETS[0]) === c ? 'active' : ''}
+                  onClick={() => update({ launcherAccents: { ...s.launcherAccents, [MINECRAFT.id]: i === 0 ? '' : c } })}
+                />
+              ))}
+              <input
+                type="color"
+                title="Свой цвет"
+                value={s.launcherAccents[MINECRAFT.id] || ACCENT_PRESETS[0]}
+                onChange={(e) => update({ launcherAccents: { ...s.launcherAccents, [MINECRAFT.id]: e.target.value } })}
               />
             </div>
           </div>

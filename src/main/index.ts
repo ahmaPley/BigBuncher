@@ -3,9 +3,20 @@ import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { prepareSmokeTestPaths, runDoctorTest, runFeatureTest, runMultiTest, runShareTest, runSmokeTest } from './devtools/smokeTest'
 import { startDevWatchers } from './dev/devService'
+import { syncDownloadWatcher } from './downloads/downloadWatcher'
+import { runLauncherTest } from './devtools/launcherTest'
+import { runSkinTest } from './devtools/skinTest'
 import { prepareTrailerPaths, runTrailer } from './devtools/trailer'
 import { registerIpcHandlers } from './ipc'
+import { guardLauncherFrames, registerLauncherScheme, serveLauncherFiles } from './launchers/launcherProtocol'
 import { scheduleUpdateChecks } from './updates/updateService'
+
+// More launchers: files of installed launchers are served as bblauncher://<id>/… in every mode.
+registerLauncherScheme()
+void app.whenReady().then(serveLauncherFiles)
+
+// BIGBUNCHER_USERDATA=<dir> — screenshots (BIGBUNCHER_CAPTURE) on a separate settings folder, not the user's.
+if (process.env.BIGBUNCHER_USERDATA) app.setPath('userData', process.env.BIGBUNCHER_USERDATA)
 
 function createMainWindow(): BrowserWindow {
   const win = new BrowserWindow({
@@ -25,6 +36,20 @@ function createMainWindow(): BrowserWindow {
     }
   })
 
+  // The portable exe runs a copy unpacked into %TEMP% that is deleted on exit. Without this the taskbar
+  // takes its icon and "pin" target from that temporary copy, so a pinned button ends up blank.
+  const portable = process.env.PORTABLE_EXECUTABLE_FILE
+  if (process.platform === 'win32' && portable) {
+    win.setAppDetails({
+      appId: 'studio.tambi.bigbuncher',
+      appIconPath: portable,
+      appIconIndex: 0,
+      relaunchCommand: `"${portable}"`,
+      relaunchDisplayName: 'BigBuncher'
+    })
+  }
+
+  guardLauncherFrames(win.webContents)
   win.once('ready-to-show', () => win.show())
   // External links open in the system browser, never inside the launcher.
   win.webContents.setWindowOpenHandler(({ url }) => {
@@ -60,7 +85,7 @@ function createMainWindow(): BrowserWindow {
 if (process.env.BIGBUNCHER_SMOKE) {
   prepareSmokeTestPaths()
   app.whenReady().then(() =>
-    (process.env.BIGBUNCHER_SMOKE === 'features' ? runFeatureTest() : process.env.BIGBUNCHER_SMOKE === 'doctor' ? runDoctorTest() : process.env.BIGBUNCHER_SMOKE === 'multi' ? runMultiTest() : process.env.BIGBUNCHER_SMOKE === 'share' ? runShareTest() : runSmokeTest()).then(
+    (process.env.BIGBUNCHER_SMOKE === 'skins' ? runSkinTest() : process.env.BIGBUNCHER_SMOKE === 'launchers' ? runLauncherTest() : process.env.BIGBUNCHER_SMOKE === 'features' ? runFeatureTest() : process.env.BIGBUNCHER_SMOKE === 'doctor' ? runDoctorTest() : process.env.BIGBUNCHER_SMOKE === 'multi' ? runMultiTest() : process.env.BIGBUNCHER_SMOKE === 'share' ? runShareTest() : runSmokeTest()).then(
       () => app.exit(0),
       (err) => {
         console.error('[smoke] FAILED', err)
@@ -94,6 +119,7 @@ if (process.env.BIGBUNCHER_SMOKE) {
     registerIpcHandlers()
     scheduleUpdateChecks()
     startDevWatchers()
+    syncDownloadWatcher()
     createMainWindow()
   })
 

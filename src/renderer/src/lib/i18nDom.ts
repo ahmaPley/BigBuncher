@@ -1,4 +1,4 @@
-import { translate, type Language } from '../../../shared/i18n'
+import { translateTo, type Language } from '../../../shared/i18n'
 
 /**
  * Applies the interface language to the DOM: every text node and the placeholder / title /
@@ -17,7 +17,8 @@ let observer: MutationObserver | undefined
 
 function readStored(): Language {
   try {
-    return localStorage.getItem(STORAGE_KEY) === 'ru' ? 'ru' : 'en'
+    const v = localStorage.getItem(STORAGE_KEY)
+    return v === 'ru' || v === 'es' || v === 'ja' ? v : 'en'
   } catch {
     return 'en'
   }
@@ -26,7 +27,7 @@ function readStored(): Language {
 export const getLanguage = (): Language => current
 
 /** Locale for dates and numbers. */
-export const locale = (): string => (current === 'en' ? 'en-US' : 'ru-RU')
+export const locale = (): string => ({ en: 'en-US', ru: 'ru-RU', es: 'es-ES', ja: 'ja-JP' })[current]
 
 function skipped(el: Element | null): boolean {
   return Boolean(el?.closest(SKIP))
@@ -35,7 +36,7 @@ function skipped(el: Element | null): boolean {
 function translateText(node: Text): void {
   const v = node.nodeValue
   if (!v || skipped(node.parentElement)) return
-  const t = translate(v)
+  const t = translateTo(current, v)
   if (t !== v) node.nodeValue = t
 }
 
@@ -43,7 +44,7 @@ function translateAttrs(el: Element): void {
   for (const a of ATTRS) {
     const v = el.getAttribute(a)
     if (v) {
-      const t = translate(v)
+      const t = translateTo(current, v)
       if (t !== v) el.setAttribute(a, t)
     }
   }
@@ -64,7 +65,10 @@ function translateTree(root: Node): void {
 
 /** Starts (en) or stops (ru) translating; returns true when a reload is needed to restore Russian. */
 export function applyLanguage(lang: Language): boolean {
-  const needsReload = current === 'en' && lang === 'ru' && Boolean(observer)
+  // English in the DOM can be translated further to es/ja on the spot; anything else (back to Russian,
+  // es ↔ ja, es/ja → en) needs the original Russian texts — reload.
+  const fromEnglish = Boolean(observer) && current === 'en' && (lang === 'es' || lang === 'ja')
+  const needsReload = Boolean(observer) && current !== lang && !fromEnglish
   current = lang
   try {
     localStorage.setItem(STORAGE_KEY, lang)
@@ -72,6 +76,10 @@ export function applyLanguage(lang: Language): boolean {
     /* storage unavailable */
   }
   document.documentElement.lang = lang
+  if (fromEnglish) {
+    translateTree(document.body)
+    return false
+  }
   if (lang === 'ru') {
     observer?.disconnect()
     observer = undefined
