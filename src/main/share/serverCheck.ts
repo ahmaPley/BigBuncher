@@ -164,6 +164,23 @@ function flattenText(c: unknown): string {
 
 const mcVersionOf = (name: string): string | undefined => /\b(\d+\.\d+(?:\.\d+)?(?:-(?:pre|rc)\d+)?|\d\dw\d\d[a-z])\b/.exec(name)?.[1]
 
+/** Online, players and version only — for the home page list, no instance to compare with. */
+export async function pingServer(address: string): Promise<ServerStatus> {
+  const status: ServerStatus = { address: address.trim(), online: false, missing: [], ok: false }
+  try {
+    const { host, port } = await resolveAddress(status.address)
+    const json = await ping(host, port)
+    status.online = true
+    status.version = (json.version as { name?: string } | undefined)?.name
+    status.motd = flattenText(json.description).replace(/§./g, '').trim().slice(0, 200)
+    const players = json.players as { online?: number; max?: number } | undefined
+    if (players) status.players = { online: players.online ?? 0, max: players.max ?? 0 }
+  } catch (err) {
+    status.error = err instanceof Error ? err.message : String(err)
+  }
+  return status
+}
+
 export async function checkServer(instanceId: string, address: string): Promise<ServerStatus> {
   const instance = getInstance(instanceId)
   const status: ServerStatus = { address: address.trim(), online: false, missing: [], ok: false }

@@ -16,7 +16,11 @@ import * as mods from './mods/modService'
 import * as multipacks from './instances/multiPackService'
 import { latestNews } from './news/newsService'
 import * as share from './share/shareService'
-import { checkServer } from './share/serverCheck'
+import { checkServer, pingServer } from './share/serverCheck'
+import { getPlaytime } from './playtime/playtimeService'
+import * as addons from './launchers/addonService'
+import * as embed from './embed/windowEmbed'
+import { TEMPLATE_LIST } from './launchers/addonTemplates'
 import * as packs from './resourcepacks/resourcePackService'
 import * as updates from './updates/updateService'
 import { getSettings, updateSettings } from './settings/settingsService'
@@ -153,9 +157,31 @@ const handlers: BigBuncherApi = {
     preview: share.previewCode,
     importCode: share.importCode,
     openFile: share.openShareFile,
-    importFile: share.importShareFile
+    importFile: share.importShareFile,
+    installFeatured: share.installFeatured
   },
-  server: { check: checkServer },
+  server: { check: checkServer, ping: pingServer },
+  embed: {
+    list: async () => embed.listEmbeddable(),
+    attach: async (slot, hwnd) => embed.attachWindow(slot, hwnd),
+    detach: async (slot) => embed.detachWindow(slot),
+    setFrame: async (slot, rect) => embed.setFrame(slot, rect),
+    state: async (slot) => embed.embedState(slot)
+  },
+  addons: {
+    available: addons.listAvailableAddons,
+    installFiles: addons.installAddonFiles,
+    exportZip: addons.exportAddon,
+    templates: async () => TEMPLATE_LIST,
+    create: async (t, name) => addons.createAddon(t, name),
+    listFiles: async (id) => addons.listAddonFiles(id),
+    readFile: async (id, p) => addons.readAddonFile(id, p),
+    writeFile: async (id, p, text) => addons.writeAddonFile(id, p, text),
+    openFolder: addons.openAddonFolder,
+    guide: async (id) => addons.addonGuide(id),
+    watch: async (ids) => addons.watchAddons(ids)
+  },
+  playtime: { get: async () => getPlaytime() },
   tasks: { list: async () => listTasks() },
   launchers: {
     list: async () => launchers.listLaunchers(),

@@ -1,4 +1,5 @@
 import { dialog } from 'electron'
+import { tmpdir } from 'node:os'
 import { createHash } from 'node:crypto'
 import { createWriteStream, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync } from 'node:fs'
 import { basename, dirname, join, relative, resolve, sep } from 'node:path'
@@ -6,6 +7,7 @@ import { pipeline } from 'node:stream/promises'
 import { deflateRawSync, inflateRawSync } from 'node:zlib'
 import yauzl from 'yauzl'
 import { ZipFile } from 'yazl'
+import { RECOMMENDED_SERVERS } from '../../shared/servers'
 import type { BlockIcon, Instance, LoaderId, ShareResult, SharePreview } from '../../shared/types'
 import { downloadFile, fetchJson, postJson } from '../core/http'
 import { instanceDir } from '../core/paths'
@@ -45,7 +47,21 @@ interface Payload {
   u?: string[]
   /** Pack file only: those mods are inside the file. */
   f?: boolean
+  /** Files downloaded at install time: CurseForge's CDN, or our own mods from the BigBuncher GitHub releases. */
+  x?: ExternalFile[]
 }
+
+interface ExternalFile {
+  /** Path inside the instance, e.g. mods/ftb-quests.jar */
+  p: string
+  u: string
+  /** sha1 */
+  s: string
+}
+
+const EXTERNAL_HOSTS = /^https:\/\/((mediafilez|edge)\.forgecdn\.net\/|github\.com\/ahmaPley\/BigBuncher\/releases\/download\/)/
+/** Folders a .bbpack may fill (worlds only come in packs made for «Рекомендуемые»). */
+const EXTRACT_DIRS = ['mods', 'saves', 'emotes', ...FILE_DIRS]
 
 interface MrVersion {
   id: string
@@ -182,7 +198,16 @@ function validate(raw: unknown): Payload {
   if (p!.lv !== undefined && (typeof p!.lv !== 'string' || !/^[\w.+\-]{1,60}$/.test(p!.lv))) bad()
   for (const list of [p!.m, p!.d ?? []]) if (!Array.isArray(list) || list.length > 2000 || list.some((x) => typeof x !== 'string' || !SAFE_ID.test(x))) bad()
   if (p!.u !== undefined && (!Array.isArray(p!.u) || p!.u.some((x) => typeof x !== 'string' || x.length > 200))) bad()
+  const x = (raw as { x?: unknown }).x
+  if (x !== undefined) {
+    if (!Array.isArray(x) || x.length > 500) bad()
+    for (const e of x as ExternalFile[]) {
+      if (!e || typeof e.p !== 'string' || typeof e.u !== 'string' || typeof e.s !== 'string') bad()
+      if (!/^[a-f0-9]{40}$/.test(e.s) || !EXTERNAL_HOSTS.test(e.u) || !/^mods\/[^\\/:*?"<>|]+\.jar$/i.test(e.p)) bad()
+    }
+  }
   return {
+    x: x as ExternalFile[] | undefined,
     k: p!.k!,
     n: p!.n!,
     i: ICONS.includes(p!.i as BlockIcon) ? p!.i : 'chest',
@@ -216,7 +241,7 @@ function toPreview(p: Payload): SharePreview {
     mcVersion: p.v,
     loader: p.l,
     loaderVersion: p.lv,
-    mods: p.m.length + (p.d?.length ?? 0) + (p.f ? (p.u?.length ?? 0) : 0),
+    mods: p.m.length + (p.d?.length ?? 0) + (p.x?.length ?? 0) + (p.f ? (p.u?.length ?? 0) : 0),
     missing: p.f ? [] : (p.u ?? []),
     hasFiles: Boolean(p.f)
   }
@@ -311,15 +336,39 @@ export interface ImportResult {
   failed: string[]
 }
 
+/** CurseForge / GitHub files listed in a pack (checked by sha1). Returns names that failed. */
+async function downloadExternal(instanceId: string, files: ExternalFile[], report: TaskReporter): Promise<string[]> {
+  const failed: string[] = []
+  const root = instanceDir(instanceId)
+  let done = 0
+  for (const e of files) {
+    const name = basename(e.p)
+    report.update(done++ / files.length, name)
+    const target = join(root, e.p)
+    try {
+      await downloadFile(e.u, target)
+      if (createHash('sha1').update(readFileSync(target)).digest('hex') !== e.s) {
+        rmSync(target, { force: true })
+        throw new Error('hash')
+      }
+      if (/forgecdn/.test(e.u)) recordModFile(instanceId, name, { provider: 'curseforge', projectId: '', title: name.replace(/\.jar$/i, ''), version: '' })
+    } catch {
+      failed.push(name)
+    }
+  }
+  return failed
+}
+
 /** New instance + its mods, downloaded while the loader installs. `withFiles` extracts the rest of a .bbpack. */
-async function importPack(p: Payload, withFiles?: (instanceId: string) => Promise<void>): Promise<ImportResult> {
+async function importPack(p: Payload, withFiles?: (instanceId: string) => Promise<void>, extra: Partial<Instance> = {}): Promise<ImportResult> {
   const id = newInstanceId()
   const creating = createInstance(
     { name: uniqueName(p.n), icon: p.i ?? 'chest', mcVersion: p.v, loader: p.l, loaderVersion: p.lv },
-    { id }
+    { ...extra, id }
   )
   const mods = runTask(`Моды для «${p.n}»`, async (report) => {
     const failed = await downloadVersions(id, p.m, p.d ?? [], report)
+    if (p.x?.length) failed.push(...(await downloadExternal(id, p.x, report)))
     if (withFiles) {
       report.update(-1, 'Распаковываю конфиги и файлы')
       await withFiles(id)
@@ -402,7 +451,7 @@ async function readManifest(file: string): Promise<Payload> {
 /** Extracts mods/ and FILE_DIRS from a .bbpack into an instance (paths are checked: nothing outside it). */
 async function extractFiles(file: string, instanceId: string): Promise<void> {
   const root = instanceDir(instanceId)
-  const allowed = ['mods', ...FILE_DIRS]
+  const allowed = EXTRACT_DIRS
   const zip = await openZip(file)
   await new Promise<void>((ok, fail) => {
     zip.on('entry', (entry: yauzl.Entry) => {
@@ -410,7 +459,7 @@ async function extractFiles(file: string, instanceId: string): Promise<void> {
       const target = resolve(root, name)
       const rel = relative(root, target)
       const top = rel.split(sep)[0]
-      if (name.endsWith('/') || rel.startsWith('..') || !allowed.includes(top) || (top === 'mods' && !/\.jar(\.disabled)?$/i.test(name))) return zip.readEntry()
+      if (name.endsWith('/') || rel.startsWith('..') || /(^|\/)session\.lock$/.test(name) || !allowed.includes(top) || (top === 'mods' && !/\.jar(\.disabled)?$/i.test(name))) return zip.readEntry()
       zip.openReadStream(entry, (err, stream) => {
         if (err || !stream) return fail(err)
         mkdirSync(dirname(target), { recursive: true })
@@ -438,4 +487,28 @@ export async function openShareFile(): Promise<{ path: string; preview: SharePre
 export async function importShareFile(path: string): Promise<ImportResult> {
   const p = await readManifest(path)
   return importPack({ ...p, k: 'p' }, (id) => extractFiles(path, id))
+}
+
+/* ---------------- «Рекомендуемые» packs ---------------- */
+
+const FEATURED_URL = /^https:\/\/github\.com\/ahmaPley\/BigBuncher\/releases\/download\/[\w.-]+\/[\w.-]+\.bbpack$/
+
+/** Downloads a pack of «Рекомендуемые серверы» (our GitHub releases only) and installs it with its world. */
+export async function installFeatured(featuredId: string): Promise<ImportResult> {
+  const entry = RECOMMENDED_SERVERS.find((s) => s.id === featuredId)
+  if (!entry?.pack || !FEATURED_URL.test(entry.pack.url)) throw new Error('У этого сервера нет сборки для скачивания')
+  const have = listInstances().find((i) => i.source === featuredId)
+  if (have) return { instance: have, failed: [] }
+  const file = join(tmpdir(), `bigbuncher-${featuredId}.bbpack`)
+  await runTask(`Скачиваю «${entry.name}»`, async (report) => {
+    await downloadFile(entry.pack!.url, file, (got, total) =>
+      report.update(total ? got / total : -1, `${Math.round(got / 1048576)} из ${Math.round(total / 1048576)} МБ`)
+    )
+  })
+  try {
+    const p = await readManifest(file)
+    return await importPack({ ...p, k: 'p', n: entry.name }, (id) => extractFiles(file, id), { source: featuredId })
+  } finally {
+    rmSync(file, { force: true })
+  }
 }

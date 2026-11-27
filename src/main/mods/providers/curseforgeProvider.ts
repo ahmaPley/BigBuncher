@@ -27,6 +27,7 @@ interface CfFile {
   displayName: string
   fileName: string
   downloadUrl: string | null
+  hashes?: { value: string; algo: number }[]
   dependencies: { modId: number; relationType: number }[]
 }
 
@@ -89,6 +90,7 @@ export const curseforgeProvider: ModProvider = {
       version: file.displayName,
       fileName: file.fileName,
       url: cdnUrl(file),
+      sha1: file.hashes?.find((h) => h.algo === 1)?.value,
       iconUrl: mod.data.logo?.thumbnailUrl,
       dependencies: file.dependencies.filter((d) => d.relationType === RELATION_REQUIRED).map((d) => String(d.modId))
     }

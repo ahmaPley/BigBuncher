@@ -1,6 +1,7 @@
 import { L } from '../core/i18n'
 import { dialog, shell } from 'electron'
-import { copyFileSync, existsSync, mkdirSync, readdirSync, renameSync, rmSync, statSync } from 'node:fs'
+import { createHash } from 'node:crypto'
+import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync } from 'node:fs'
 import { basename, join } from 'node:path'
 import type { InstalledMod, ModProviderId, ModProviderInfo, ModSearchQuery, ModSearchResult } from '../../shared/types'
 import { downloadFile } from '../core/http'
@@ -108,7 +109,14 @@ export async function installMod(instanceId: string, providerId: ModProviderId, 
       await downloadFile(file.url, join(modsDir(instanceId), file.fileName), (got, total) =>
         report.update(total ? got / total : -1)
       )
-      const { url: _url, dependencies, fileName, ...meta } = file
+      if (file.sha1) {
+        const got = createHash('sha1').update(readFileSync(join(modsDir(instanceId), file.fileName))).digest('hex')
+        if (got !== file.sha1.toLowerCase()) {
+          rmSync(join(modsDir(instanceId), file.fileName), { force: true })
+          throw new Error(`«${file.title}» скачался битым (не совпал хеш). Попробуй ещё раз.`)
+        }
+      }
+      const { url: _url, dependencies, fileName, sha1: _sha1, ...meta } = file
       store.update((data) => {
         data.files[fileName] = meta
       })

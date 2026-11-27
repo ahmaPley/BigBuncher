@@ -207,7 +207,7 @@ export function GraphicsModal() {
     const target = graphicsAsk
     setGraphicsAsk(undefined)
     await run(() => api.settings.update({ graphicsApi: api_ }))
-    await launch(target.instanceId, { skipPreflight: target.skipPreflight })
+    await launch(target.instanceId, { skipPreflight: target.skipPreflight, server: target.server })
   }
 
   return (

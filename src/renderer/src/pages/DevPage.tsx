@@ -5,6 +5,33 @@ import { InstancePicker } from '../components/InstancePicker'
 import { Button, EmptyState, Segmented, Toggle } from '../components/ui'
 import { api } from '../lib/api'
 import { useApp } from '../lib/appState'
+import { WindowDock } from '../components/WindowDock'
+
+/** Обычный = the dev tools below; Расширенный adds a frame where IntelliJ IDEA, Blockbench, a sound editor… open. */
+function DevModeSwitch() {
+  const { settings, run } = useApp()
+  const extended = Boolean(settings?.devExtended)
+  return (
+    <>
+      <div className="row" style={{ marginBottom: 14 }}>
+        <Segmented
+          value={extended ? 'ext' : 'normal'}
+          options={[
+            { value: 'normal', label: 'Обычный' },
+            { value: 'ext', label: 'Расширенный' }
+          ]}
+          onChange={(v) => void run(() => api.settings.update({ devExtended: v === 'ext' }))}
+        />
+        {extended && <span className="dim" style={{ fontSize: 12 }}>Можно встроить IntelliJ IDEA, Blockbench, звукоредактор — любую программу.</span>}
+      </div>
+      {extended && (
+        <div className="card" style={{ marginBottom: 18 }}>
+          <WindowDock slot="dev" hint="IntelliJ IDEA, Blockbench, Audacity, FL Studio — что угодно." />
+        </div>
+      )}
+    </>
+  )
+}
 import { formatDate } from '../lib/format'
 
 type Level = 'all' | 'warn' | 'error'
@@ -43,6 +70,7 @@ export function DevPage() {
     return (
       <div className="page">
         <div className="titlebar-spacer" />
+        <DevModeSwitch />
         <EmptyState icon="crafting" title="Нет сборки">Создай сборку с загрузчиком модов, чтобы тестировать в ней свой мод.</EmptyState>
       </div>
     )
@@ -71,6 +99,7 @@ export function DevPage() {
           <InstancePicker />
         </div>
       </div>
+      <DevModeSwitch />
 
       <div className="dev-grid stagger">
         <div className="card">

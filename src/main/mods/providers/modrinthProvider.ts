@@ -22,7 +22,7 @@ interface SearchResponse {
 
 interface ModrinthVersion {
   version_number: string
-  files: { url: string; filename: string; primary: boolean }[]
+  files: { url: string; filename: string; primary: boolean; hashes?: { sha1?: string } }[]
   dependencies: { project_id?: string; dependency_type: string }[]
 }
 
@@ -81,6 +81,7 @@ export const modrinthProvider: ModProvider = {
       version: latest.version_number,
       fileName: file.filename,
       url: file.url,
+      sha1: file.hashes?.sha1,
       iconUrl: project.icon_url || undefined,
       dependencies: latest.dependencies
         .filter((d) => d.dependency_type === 'required' && d.project_id)

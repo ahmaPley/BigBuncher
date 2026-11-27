@@ -1,7 +1,7 @@
 import { useEffect, type ComponentType } from 'react'
 import { applyAccent } from './lib/theme'
 import { MINECRAFT_LAUNCHER_ID } from '../../shared/types'
-import { LaunchersModal, useWindowIcon } from './components/Launchers'
+import { useWindowIcon } from './components/Launchers'
 import { PluginHost } from './components/PluginHost'
 import { DownloadPrompt } from './components/DownloadPrompt'
 import { AccountsModal } from './components/AccountsModal'
@@ -17,6 +17,7 @@ import { InstancesPage } from './pages/InstancesPage'
 import { ModsPage } from './pages/ModsPage'
 import { ResourcePacksPage } from './pages/ResourcePacksPage'
 import { SettingsPage } from './pages/SettingsPage'
+import { AddonsPage } from './pages/AddonsPage'
 import { SkinsPage } from './pages/SkinsPage'
 
 /** Page registry: add a page here and a nav item in components/Sidebar.tsx. */
@@ -28,11 +29,12 @@ const PAGES: Record<PageId, ComponentType> = {
   packs: ResourcePacksPage,
   skins: SkinsPage,
   dev: DevPage,
-  settings: SettingsPage
+  settings: SettingsPage,
+  addons: AddonsPage
 }
 
 export function App() {
-  const { page, accountsOpen, settings, activeLauncher, launchersOpen } = useApp()
+  const { page, accountsOpen, settings, activeLauncher } = useApp()
   const Page = PAGES[page]
   useWindowIcon()
   const accent = settings?.launcherAccents[MINECRAFT_LAUNCHER_ID]
@@ -42,7 +44,6 @@ export function App() {
     return (
       <div className="app plugin-mode">
         <PluginHost key={activeLauncher.id} launcher={activeLauncher} />
-        {launchersOpen && <LaunchersModal />}
         <Toasts />
       </div>
     )
@@ -55,7 +56,6 @@ export function App() {
         <TitleBar />
         {settings ? <Page key={page} /> : <div className="page" />}
       </main>
-      {launchersOpen && <LaunchersModal />}
       {accountsOpen && <AccountsModal />}
       <DownloadPrompt />
       <DoctorModal />

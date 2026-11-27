@@ -507,3 +507,27 @@ export async function runShareTest(): Promise<void> {
   }
   log('SHARE TEST PASSED')
 }
+
+/**
+ * BIGBUNCHER_SMOKE=featured — «Скачать» of a recommended pack (BIGBUNCHER_SMOKE_FEATURED, default absolute-pvp):
+ * downloads the .bbpack from GitHub, installs the loader, Modrinth/CurseForge/GitHub mods (sha1-checked) and the world.
+ */
+export async function runFeaturedTest(): Promise<void> {
+  const { updateSettings } = await import('../settings/settingsService')
+  const share = await import('../share/shareService')
+  const { modsDir } = await import('../mods/modService')
+  const { existsSync, readdirSync } = await import('node:fs')
+  const log = (...a: unknown[]): void => console.log('[featured]', ...a)
+  updateSettings({ gameDir: process.env.BIGBUNCHER_SMOKE_GAMEDIR, afterLaunch: 'keep' })
+  const id = process.env.BIGBUNCHER_SMOKE_FEATURED ?? 'absolute-pvp'
+  const t = Date.now()
+  const res = await share.installFeatured(id)
+  const dir = instanceDir(res.instance.id)
+  const mods = readdirSync(modsDir(res.instance.id)).filter((f) => f.endsWith('.jar'))
+  const saves = existsSync(join(dir, 'saves')) ? readdirSync(join(dir, 'saves')) : []
+  log('instance', res.instance.id, res.instance.name, 'source', res.instance.source, 'installed', res.instance.installed)
+  log('mods', mods.length, 'failed', JSON.stringify(res.failed), 'saves', JSON.stringify(saves), `${Math.round((Date.now() - t) / 1000)} s`)
+  if (res.failed.length || !res.instance.installed || !saves.length || res.instance.source !== id) throw new Error('featured install incomplete')
+  if (!existsSync(join(dir, 'saves', saves[0], 'level.dat'))) throw new Error('no level.dat')
+  log('OK', dir)
+}

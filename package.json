@@ -1,7 +1,7 @@
 {
   "name": "bigbuncher",
   "productName": "BigBuncher",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "description": "BigBuncher — Minecraft Java Edition launcher",
   "author": "TambiStudio",
   "main": "out/main/index.js",
@@ -31,6 +31,7 @@
     "@xmcl/core": "2.15.1",
     "@xmcl/installer": "6.1.2",
     "@xmcl/task": "4.1.1",
+    "koffi": "2.9.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "skinview3d": "^3.4.2",

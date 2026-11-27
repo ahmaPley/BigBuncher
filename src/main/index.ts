@@ -1,7 +1,7 @@
 import { app, BrowserWindow, shell } from 'electron'
 import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { prepareSmokeTestPaths, runDoctorTest, runFeatureTest, runMultiTest, runShareTest, runSmokeTest } from './devtools/smokeTest'
+import { prepareSmokeTestPaths, runDoctorTest, runFeatureTest, runMultiTest, runFeaturedTest, runShareTest, runSmokeTest } from './devtools/smokeTest'
 import { startDevWatchers } from './dev/devService'
 import { syncDownloadWatcher } from './downloads/downloadWatcher'
 import { runLauncherTest } from './devtools/launcherTest'
@@ -10,6 +10,7 @@ import { prepareTrailerPaths, runTrailer } from './devtools/trailer'
 import { registerIpcHandlers } from './ipc'
 import { guardLauncherFrames, registerLauncherScheme, serveLauncherFiles } from './launchers/launcherProtocol'
 import { scheduleUpdateChecks } from './updates/updateService'
+import { attachWindow, detachAll, guardEmbeds, listEmbeddable } from './embed/windowEmbed'
 
 // More launchers: files of installed launchers are served as bblauncher://<id>/… in every mode.
 registerLauncherScheme()
@@ -50,6 +51,7 @@ function createMainWindow(): BrowserWindow {
   }
 
   guardLauncherFrames(win.webContents)
+  guardEmbeds(win)
   win.once('ready-to-show', () => win.show())
   // External links open in the system browser, never inside the launcher.
   win.webContents.setWindowOpenHandler(({ url }) => {
@@ -73,7 +75,26 @@ function createMainWindow(): BrowserWindow {
           win.webContents.sendInputEvent({ type: 'mouseUp', x, y, button: 'left', clickCount: 1 })
           await new Promise((r) => setTimeout(r, 400))
         }
+        // BIGBUNCHER_CAPTURE_EMBED=<part of a window title> — puts that window into the texture frame (UI checks).
+        const embedTitle = process.env.BIGBUNCHER_CAPTURE_EMBED
+        if (embedTitle) {
+          const target = listEmbeddable().find((w) => w.title.includes(embedTitle))
+          if (target) attachWindow('textures', target.hwnd)
+          else console.warn('[capture] no window', embedTitle)
+        }
         await new Promise((r) => setTimeout(r, Number(process.env.BIGBUNCHER_CAPTURE_AFTER ?? 0)))
+        if (embedTitle) {
+          // a screenshot of the page alone wouldn't show a child window — grab the screen area instead
+          const { desktopCapturer, screen } = await import('electron')
+          const b = win.getBounds()
+          const d = screen.getDisplayMatching(b)
+          const shot = (await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: d.size.width * d.scaleFactor, height: d.size.height * d.scaleFactor } }))[0]
+          const k = d.scaleFactor
+          writeFileSync(capture, shot.thumbnail.crop({ x: (b.x - d.bounds.x) * k, y: (b.y - d.bounds.y) * k, width: b.width * k, height: b.height * k }).toPNG())
+          detachAll()
+          app.quit()
+          return
+        }
         writeFileSync(capture, (await win.webContents.capturePage()).toPNG())
         app.quit()
       }, Number(process.env.BIGBUNCHER_CAPTURE_DELAY ?? 4000))
@@ -85,7 +106,7 @@ function createMainWindow(): BrowserWindow {
 if (process.env.BIGBUNCHER_SMOKE) {
   prepareSmokeTestPaths()
   app.whenReady().then(() =>
-    (process.env.BIGBUNCHER_SMOKE === 'skins' ? runSkinTest() : process.env.BIGBUNCHER_SMOKE === 'launchers' ? runLauncherTest() : process.env.BIGBUNCHER_SMOKE === 'features' ? runFeatureTest() : process.env.BIGBUNCHER_SMOKE === 'doctor' ? runDoctorTest() : process.env.BIGBUNCHER_SMOKE === 'multi' ? runMultiTest() : process.env.BIGBUNCHER_SMOKE === 'share' ? runShareTest() : runSmokeTest()).then(
+    (process.env.BIGBUNCHER_SMOKE === 'skins' ? runSkinTest() : process.env.BIGBUNCHER_SMOKE === 'launchers' ? runLauncherTest() : process.env.BIGBUNCHER_SMOKE === 'features' ? runFeatureTest() : process.env.BIGBUNCHER_SMOKE === 'doctor' ? runDoctorTest() : process.env.BIGBUNCHER_SMOKE === 'multi' ? runMultiTest() : process.env.BIGBUNCHER_SMOKE === 'share' ? runShareTest() : process.env.BIGBUNCHER_SMOKE === 'featured' ? runFeaturedTest() : runSmokeTest()).then(
       () => app.exit(0),
       (err) => {
         console.error('[smoke] FAILED', err)

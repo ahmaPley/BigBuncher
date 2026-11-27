@@ -1,9 +1,24 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { LauncherInfo } from '../../../shared/types'
 import { api } from '../lib/api'
 import { useApp } from '../lib/appState'
 import { errorText } from '../lib/format'
 import { TitleBar } from './TitleBar'
+
+/** Plugins whose interface is on screen; main watches their files (hot reload). */
+const watched = new Map<string, number>()
+function useAddonWatch(id: string): void {
+  useEffect(() => {
+    watched.set(id, (watched.get(id) ?? 0) + 1)
+    void api.addons.watch([...watched.keys()]).catch(() => undefined)
+    return () => {
+      const n = (watched.get(id) ?? 1) - 1
+      if (n > 0) watched.set(id, n)
+      else watched.delete(id)
+      void api.addons.watch([...watched.keys()]).catch(() => undefined)
+    }
+  }, [id])
+}
 
 /**
  * Shows an installed launcher's own interface in a sandboxed frame (its own bblauncher:// origin,
@@ -11,14 +26,17 @@ import { TitleBar } from './TitleBar'
  *   frame → host  { __bb: 'req', id, method, args }
  *   host → frame  { __bb: 'res', id, ok, value | error }   and   { __bb: 'event', name: 'context', payload }
  * The host adds the launcher id itself, so a frame can only act as itself (main/launchers/launcherBridge.ts).
+ * Saved html/css/js/json of the plugin reload the frame at once (rule «изменения видны сразу»).
  */
-export function PluginHost({ launcher }: { launcher: LauncherInfo }) {
+export function PluginFrame({ launcher, startPage }: { launcher: LauncherInfo; startPage?: string }) {
   const frame = useRef<HTMLIFrameElement>(null)
   const { settings } = useApp()
+  const [reload, setReload] = useState(0)
   const origin = new URL(launcher.entryUrl).origin
-  // BIGBUNCHER_PAGE=home/plugin=settings — opens that page of the launcher (screenshots: synthetic clicks don't reach the frame).
-  const startPage = /plugin=([\w-]+)/.exec(location.hash)?.[1]
-  const src = launcher.entryUrl + (startPage ? `#${startPage}` : '')
+  const src = launcher.entryUrl + (reload ? `${launcher.entryUrl.includes('?') ? '&' : '?'}r=${reload}` : '') + (startPage ? `#${startPage}` : '')
+  useAddonWatch(launcher.id)
+
+  useEffect(() => api.on('addonChanged', (e) => e.id === launcher.id && setReload(Date.now())), [launcher.id])
 
   useEffect(() => {
     const onMessage = async (e: MessageEvent): Promise<void> => {
@@ -52,15 +70,23 @@ export function PluginHost({ launcher }: { launcher: LauncherInfo }) {
   }, [settings?.language, icon, accent, origin])
 
   return (
+    <iframe
+      ref={frame}
+      src={src}
+      title={launcher.name}
+      sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+      data-no-i18n
+    />
+  )
+}
+
+export function PluginHost({ launcher }: { launcher: LauncherInfo }) {
+  // BIGBUNCHER_PAGE=home/plugin=settings — opens that page of the launcher (screenshots: synthetic clicks don't reach the frame).
+  const startPage = /plugin=([\w-]+)/.exec(location.hash)?.[1]
+  return (
     <div className="plugin-host">
       <TitleBar />
-      <iframe
-        ref={frame}
-        src={src}
-        title={launcher.name}
-        sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
-        data-no-i18n
-      />
+      <PluginFrame launcher={launcher} startPage={startPage} />
     </div>
   )
 }

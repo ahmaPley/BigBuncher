@@ -27,6 +27,8 @@ export function serveLauncherFiles(): void {
     // CORS so the BigBuncher page can draw a launcher's icon on a canvas (window icon).
     const headers = new Headers(res.headers)
     headers.set('Access-Control-Allow-Origin', '*')
+    // plugin files change while editing (Дополнения → Редактор) — never serve a stale copy
+    headers.set('Cache-Control', 'no-cache')
     return new Response(res.body, { status: res.status, headers })
   })
 }

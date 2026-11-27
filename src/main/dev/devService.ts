@@ -250,7 +250,7 @@ export function startDevWatchers(): void {
 /* ---------------- launch options ---------------- */
 
 /** Minecraft 1.20+ understands --quickPlaySingleplayer / --quickPlayMultiplayer. */
-function hasQuickPlay(mcVersion: string): boolean {
+export function hasQuickPlay(mcVersion: string): boolean {
   const [major, minor] = mcVersion.split(/[.-]/).map(Number)
   return major > 1 || (major === 1 && minor >= 20)
 }

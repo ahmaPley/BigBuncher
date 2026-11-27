@@ -70,7 +70,9 @@ export function Modal({ title, onClose, children, width }: { title: string; onCl
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose])
 
-  return (
+  // Portal on <body>: an animated/transformed page would otherwise pin the fixed backdrop to itself,
+  // so on a scrolled page the dialog showed up at the top of the content instead of the visible window.
+  return createPortal(
     <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className="modal" style={width ? { width: `min(${width}px, calc(100vw - 48px))` } : undefined}>
         <div className="modal-header">
@@ -80,7 +82,8 @@ export function Modal({ title, onClose, children, width }: { title: string; onCl
         </div>
         {children}
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }
 

@@ -40,6 +40,13 @@ import type {
   ModSearchResult,
   NewInstanceRequest,
   NewsItem,
+  Playtime,
+  AddonFile,
+  EmbedRect,
+  EmbedState,
+  EmbeddableWindow,
+  AddonTemplate,
+  AvailableAddon,
   Settings,
   ServerStatus,
   SharePreview,
@@ -91,7 +98,7 @@ export interface BigBuncherApi {
   }
   game: {
     /** 'blocked' = the pre-launch check found problems and sent a `diagnosis` event instead. */
-    launch(instanceId: string, opts?: { skipPreflight?: boolean }): Promise<'started' | 'blocked'>
+    launch(instanceId: string, opts?: { skipPreflight?: boolean; server?: string }): Promise<'started' | 'blocked'>
     /** Stops one game, or all running games when no instance is given. */
     stop(instanceId?: string): Promise<void>
     state(): Promise<GameState>
@@ -189,8 +196,15 @@ export interface BigBuncherApi {
     importCode(code: string, targetInstanceId?: string): Promise<ShareImportResult>
     openFile(): Promise<{ path: string; preview: SharePreview } | null>
     importFile(path: string): Promise<ShareImportResult>
+    /** Downloads the pack of a «Рекомендуемые» entry (with its world). */
+    installFeatured(featuredId: string): Promise<ShareImportResult>
+  }
+  playtime: {
+    get(): Promise<Playtime>
   }
   server: {
+    /** Only online/players/version — no instance needed (home page list). */
+    ping(address: string): Promise<ServerStatus>
     /** Pings the server and compares version/mods with the instance (publishes a diagnosis when they differ). */
     check(instanceId: string, address: string): Promise<ServerStatus>
   }
@@ -209,6 +223,35 @@ export interface BigBuncherApi {
     setWindowIcon(dataUrl: string): Promise<void>
     /** A call from a launcher's frame through the bridge (see main/launchers/launcherBridge.ts). */
     bridge(id: string, method: string, args: unknown[]): Promise<unknown>
+  }
+  /** «Рамка для программ»: another program's window inside a frame of BigBuncher (Windows). */
+  embed: {
+    list(): Promise<EmbeddableWindow[]>
+    attach(slot: string, hwnd: string): Promise<EmbedState>
+    /** Gives the program its own window back. */
+    detach(slot: string): Promise<EmbedState>
+    /** Frame rect in physical px inside the window; null = the frame is not on screen (the program is hidden). */
+    setFrame(slot: string, rect: EmbedRect | null): Promise<void>
+    state(slot: string): Promise<EmbedState>
+  }
+  /** «Дополнения»: plugins found on the PC, sharing, templates, the editor with live preview. */
+  addons: {
+    available(): Promise<AvailableAddon[]>
+    /** Installs zips from available() without asking again (the player ticked them). */
+    installFiles(files: string[]): Promise<LauncherInfo[]>
+    /** Save dialog → zip of the installed plugin; null = cancelled. */
+    exportZip(id: string): Promise<string | null>
+    templates(): Promise<AddonTemplate[]>
+    /** template: an id from templates() or "copy:<installed id>". */
+    create(template: string, name: string): Promise<LauncherInfo>
+    listFiles(id: string): Promise<AddonFile[]>
+    readFile(id: string, path: string): Promise<string>
+    writeFile(id: string, path: string, text: string): Promise<void>
+    openFolder(id: string): Promise<void>
+    /** Writes ИНСТРУКЦИЯ-ДЛЯ-ИИ.md into the plugin folder and shows it; returns the path. */
+    guide(id: string): Promise<string>
+    /** Plugins whose interface is on screen; their saved files send addonChanged. */
+    watch(ids: string[]): Promise<void>
   }
 }
 
@@ -236,10 +279,13 @@ export const API_METHODS: MethodNames<BigBuncherApi> = {
   doctor: ['last', 'analyzeLastRun', 'analyzeText', 'preflight', 'applyFixes', 'startBisect', 'cancelBisect', 'bisectState'],
   graphics: ['detect', 'hasChoice'],
   dev: ['getProfile', 'saveProfile', 'pickProject', 'inspectProject', 'build', 'cancelBuild', 'deploy', 'buildAndRun', 'restart', 'inspectMods', 'listWorlds', 'openFolder'],
-  share: ['createCode', 'saveFile', 'preview', 'importCode', 'openFile', 'importFile'],
-  server: ['check'],
+  share: ['createCode', 'saveFile', 'preview', 'importCode', 'openFile', 'importFile', 'installFeatured'],
+  server: ['check', 'ping'],
+  playtime: ['get'],
   tasks: ['list'],
-  launchers: ['list', 'installZip', 'remove', 'activate', 'setIcon', 'setWindowIcon', 'bridge']
+  launchers: ['list', 'installZip', 'remove', 'activate', 'setIcon', 'setWindowIcon', 'bridge'],
+  embed: ['list', 'attach', 'detach', 'setFrame', 'state'],
+  addons: ['available', 'installFiles', 'exportZip', 'templates', 'create', 'listFiles', 'readFile', 'writeFile', 'openFolder', 'guide', 'watch']
 }
 
 /** Push events from main to renderer. */
@@ -257,6 +303,10 @@ export interface AppEvents {
   devLog: DevLogLine
   launchersChanged: LauncherInfo[]
   downloadedMod: DownloadedFile
+  playtime: Playtime
+  /** A watched plugin's html/css/js/json was saved — reload its interface. */
+  addonChanged: { id: string; file: string }
+  embed: EmbedState
 }
 
 export type AppEventName = keyof AppEvents

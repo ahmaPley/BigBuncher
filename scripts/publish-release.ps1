@@ -10,12 +10,33 @@ param(
   [string]$TokenFile = "$env:USERPROFILE\.secrets\github_token.txt",
   [string]$Notes = "",
   # Replace the exe of an already published release (hotfix without a version bump).
-  [switch]$Replace
+  [switch]$Replace,
+  # Upload every file of this folder to the "packs" pre-release (packs of the recommended servers; never latest).
+  [string]$PackDir = ""
 )
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 $exe = Join-Path $root "release\BigBuncher.exe"
 $version = (Get-Content (Join-Path $root "package.json") -Raw | ConvertFrom-Json).version
+if ($PackDir) {
+  $token = (Get-Content $TokenFile -Raw).Trim()
+  $h = @{ "Authorization" = "Bearer $token"; "Accept" = "application/vnd.github+json"; "User-Agent" = "bigbuncher-release" }
+  try {
+    try { $rel = (Invoke-WebRequest -Uri "https://api.github.com/repos/$Repo/releases/tags/packs" -Headers $h -UseBasicParsing).Content | ConvertFrom-Json }
+    catch {
+      $body = [Text.Encoding]::UTF8.GetBytes((@{ tag_name = "packs"; name = "Packs"; body = "Files BigBuncher downloads by itself (recommended servers). Not a launcher release."; prerelease = $true } | ConvertTo-Json))
+      $rel = (Invoke-WebRequest -Method POST -Uri "https://api.github.com/repos/$Repo/releases" -Headers $h -Body $body -ContentType "application/json; charset=utf-8" -UseBasicParsing).Content | ConvertFrom-Json
+    }
+    foreach ($file in Get-ChildItem $PackDir -File) {
+      $old = $rel.assets | Where-Object { $_.name -eq $file.Name }
+      if ($old) { Invoke-WebRequest -Method DELETE -Uri "https://api.github.com/repos/$Repo/releases/assets/$($old.id)" -Headers $h -UseBasicParsing | Out-Null }
+      Write-Host "Uploading $($file.Name) ($([math]::Round($file.Length / 1MB)) MB)"
+      Invoke-WebRequest -Method POST -Uri "https://uploads.github.com/repos/$Repo/releases/$($rel.id)/assets?name=$($file.Name)" -Headers $h -InFile $file.FullName -ContentType "application/octet-stream" -UseBasicParsing | Out-Null
+    }
+    Write-Host "Done: $($rel.html_url)"
+  } finally { Remove-Variable token -ErrorAction SilentlyContinue; $h = $null }
+  exit 0
+}
 if (-not (Test-Path $exe)) { throw "release\BigBuncher.exe not found - run npm run dist first" }
 if (-not (Test-Path $TokenFile)) { throw "Token file not found: $TokenFile" }
 

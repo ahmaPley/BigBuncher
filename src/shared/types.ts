@@ -26,6 +26,8 @@ export interface Instance {
   multiPackId?: string
   /** Name of the state inside its multi-pack ("Ванилла", "С модами"…). */
   stateName?: string
+  /** Id of the «Рекомендуемые» entry this instance was downloaded from. */
+  source?: string
 }
 
 export interface NewInstanceRequest {
@@ -91,7 +93,79 @@ export interface Settings {
   launcherAccents: Record<string, string>
   /** Offer to install mods downloaded in any browser (watches the Downloads folder). */
   watchDownloads: boolean
+  /** Home page: hide the «Рекомендуемые серверы» card. */
+  hideServers: boolean
+  /** Hide the donate (heart) button. */
+  hideDonate: boolean
+  /** Разработка: «Расширенный» mode with a frame for programs (IntelliJ IDEA, Blockbench, sound editors…). */
+  devExtended: boolean
 }
+
+/** Server shown on the home page (shared/servers.ts). */
+export interface RecommendedServer {
+  id: string
+  name: string
+  /** Empty for a pack played with friends (no permanent server). */
+  address?: string
+  /** A ready pack (with its world) the launcher downloads: «Скачать», then «Играть». */
+  pack?: { url: string; size: string }
+  /** Versions the server accepts, e.g. "1.8–1.21". */
+  versions: string
+  /** vanilla = any instance of a fitting version joins; pack = needs a modded instance (see packNote). */
+  kind: 'vanilla' | 'pack'
+  packNote?: string
+  description: string
+}
+
+/** A plugin zip found on this PC (Downloads, the Лаунчеры folder) — «Дополнения» → другие. */
+export interface AvailableAddon {
+  file: string
+  id: string
+  name: string
+  version: string
+  author: string
+  description: string
+  /** Version of the same plugin that is already installed. */
+  installedVersion?: string
+}
+
+/** A file of an installed plugin (editor). */
+export interface AddonFile {
+  path: string
+  size: number
+  editable: boolean
+}
+
+export interface AddonTemplate {
+  id: string
+  name: string
+  description: string
+}
+
+/** «Рамка для программ»: frame position in physical pixels inside the BigBuncher window. */
+export interface EmbedRect {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+export interface EmbedState {
+  slot: string
+  attached: boolean
+  title?: string
+  exe?: string
+}
+
+/** A top-level window of another program that can be put into a frame. hwnd as a decimal string. */
+export interface EmbeddableWindow {
+  hwnd: string
+  title: string
+  exe: string
+}
+
+/** Played time per launcher id, milliseconds (running sessions included). */
+export type Playtime = Record<string, number>
 
 /** A mod-like file that appeared in Downloads; site/url come from Windows' Zone.Identifier. */
 export interface DownloadedFile {

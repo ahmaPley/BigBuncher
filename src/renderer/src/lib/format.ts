@@ -15,6 +15,14 @@ export function formatDate(iso: string | number): string {
   return new Date(iso).toLocaleDateString(locale(), { day: 'numeric', month: 'long', year: 'numeric' })
 }
 
+/** 3 ч 20 мин / 45 мин / меньше минуты */
+export function formatPlaytime(ms: number): string {
+  const min = Math.floor(ms / 60_000)
+  if (min < 1) return 'меньше минуты'
+  const h = Math.floor(min / 60)
+  return h ? `${h} ч ${min % 60} мин` : `${min} мин`
+}
+
 export function formatRam(mb: number): string {
   return mb >= 1024 ? `${(mb / 1024).toFixed(mb % 1024 ? 1 : 0)} ГБ` : `${mb} МБ`
 }

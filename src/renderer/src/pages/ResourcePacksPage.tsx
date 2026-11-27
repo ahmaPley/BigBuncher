@@ -5,12 +5,14 @@ import { InstancePicker } from '../components/InstancePicker'
 import { Button, EmptyState, Toggle } from '../components/ui'
 import { api } from '../lib/api'
 import { useApp } from '../lib/appState'
+import { WindowDock } from '../components/WindowDock'
 import { formatSize } from '../lib/format'
 
 export function ResourcePacksPage() {
   const { selectedInstance, run } = useApp()
   const [shared, setShared] = useState<ResourcePack[]>()
   const [own, setOwn] = useState<ResourcePack[]>()
+  const [editor, setEditor] = useState(false)
 
   useEffect(() => {
     api.resourcepacks.listShared().then(setShared, () => setShared([]))
@@ -40,7 +42,16 @@ export function ResourcePacksPage() {
           <h1>Текстурпаки</h1>
           <p>Общие паки подключаются к каждой сборке на любой версии, а свои — только к выбранной.</p>
         </div>
+        <span className="spacer" />
+        <Button icon="frame" variant={editor ? 'primary' : 'default'} onClick={() => setEditor(!editor)}>
+          Редактор текстур
+        </Button>
       </div>
+      {editor && (
+        <div className="card" style={{ marginBottom: 18 }}>
+          <WindowDock slot="textures" hint="Photoshop, Aseprite, Paint.NET, Krita, Blockbench — любой редактор." />
+        </div>
+      )}
 
       <div className="packs-layout">
         <div className="card">

@@ -18,7 +18,7 @@ const NAV: { id: PageId; label: string; icon: IconName }[] = [
 ]
 
 export function Sidebar() {
-  const { page, navigate, instances, multiPacks, tasks, selectedAccount, skinOf, setAccountsOpen, update, run, settings, launchers, setLaunchersOpen } = useApp()
+  const { page, navigate, instances, multiPacks, tasks, selectedAccount, skinOf, setAccountsOpen, update, run, settings, launchers } = useApp()
   const brandIcon = iconOf(MINECRAFT, settings)
   const nav = NAV.filter((n) => n.id !== 'dev' || settings?.devMode)
   const [installing, setInstalling] = useState(false)
@@ -44,9 +44,9 @@ export function Sidebar() {
       </nav>
 
       <div style={{ marginTop: 'auto' }}>
-        <button className="nav-item more-launchers" onClick={() => setLaunchersOpen(true)}>
-          <Icon name="grid" />
-          More launchers
+        <button className={`nav-item more-launchers ${page === 'addons' ? 'active' : ''}`} onClick={() => navigate('addons')}>
+          <Icon name="puzzle" />
+          Дополнения
           {launchers.length > 1 && <span className="nav-badge">{launchers.length - 1}</span>}
         </button>
         {update?.available && (

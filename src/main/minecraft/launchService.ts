@@ -2,7 +2,8 @@ import { createMinecraftProcessWatcher, launch, type LaunchOption } from '@xmcl/
 import { BrowserWindow } from 'electron'
 import type { ChildProcess } from 'node:child_process'
 import { mkdirSync } from 'node:fs'
-import type { GameState } from '../../shared/types'
+import { MINECRAFT_LAUNCHER_ID, type GameState } from '../../shared/types'
+import { endPlaySession, startPlaySession } from '../playtime/playtimeService'
 import { findAccount, getLaunchCredentials } from '../auth/accountService'
 import { emit } from '../core/events'
 import { gameDir, instanceDir } from '../core/paths'
@@ -11,7 +12,14 @@ import { getInstance, installInstance, isInstanceBusy, patchInstance } from '../
 import { getSettings } from '../settings/settingsService'
 import { syncSharedPacksIntoInstance } from '../resourcepacks/resourcePackService'
 import { prepareSkinInjection } from '../skins/skinService'
-import { devLaunchArgs } from '../dev/devService'
+import { devLaunchArgs, hasQuickPlay } from '../dev/devService'
+
+/** 1.20+ joins with --quickPlayMultiplayer, older versions with --server/--port. */
+function serverArgs(mcVersion: string, address: string): string[] {
+  if (hasQuickPlay(mcVersion)) return ['--quickPlayMultiplayer', address]
+  const [host, port] = address.split(':')
+  return ['--server', host, '--port', port || '25565']
+}
 import { preflight, sessionEnded, sessionLine, sessionStarted } from '../diagnostics/crashDoctor'
 import { graphicsArgs } from './graphicsService'
 import { ensureJava, javaRequirementOf } from './javaService'
@@ -32,6 +40,8 @@ export const isInstanceRunning = (instanceId: string): boolean => running.has(in
 export interface LaunchOptions {
   /** Skip the mod check before launch (the player chose "launch anyway", or the culprit search runs). */
   skipPreflight?: boolean
+  /** Join this server right after start (home page «Рекомендуемые серверы»). */
+  server?: string
 }
 
 /** Launches the instance. Resolves 'blocked' when the pre-launch check found problems (a diagnosis was emitted). */
@@ -49,6 +59,7 @@ export async function launchInstance(instanceId: string, opts: LaunchOptions = {
   if (!getInstance(instanceId).installed) await installInstance(instanceId)
   const instance = getInstance(instanceId)
   const dev = devLaunchArgs(instanceId)
+  const join = opts.server?.trim() ? serverArgs(instance.mcVersion, opts.server.trim()) : []
 
   const options = await runTask(`Запуск «${instance.name}»`, async (report): Promise<LaunchOption> => {
     report.update(-1, 'Проверка Java')
@@ -81,7 +92,7 @@ export async function launchInstance(instanceId: string, opts: LaunchOptions = {
         ? { fullscreen: true }
         : { width: settings.resolution.width, height: settings.resolution.height },
       extraJVMArgs: [...settings.jvmArgs.split(/\s+/).filter(Boolean), ...dev.jvm],
-      extraMCArgs: [...graphics, ...dev.game],
+      extraMCArgs: [...graphics, ...(join.length ? dev.game.filter((a, i, all) => !a.startsWith('--quickPlay') && !all[i - 1]?.startsWith('--quickPlay')) : dev.game), ...join],
       yggdrasilAgent: skin,
       extraExecOption: { detached: false, windowsHide: true }
     }
@@ -89,6 +100,7 @@ export async function launchInstance(instanceId: string, opts: LaunchOptions = {
 
   const child = await launch(options)
   running.set(instanceId, { process: child, startedAt: Date.now() })
+  startPlaySession(MINECRAFT_LAUNCHER_ID, instanceId)
   patchInstance(instanceId, { lastPlayedAt: Date.now() })
   sessionStarted(instanceId)
   emit('game', getGameState())
@@ -109,6 +121,7 @@ export async function launchInstance(instanceId: string, opts: LaunchOptions = {
   })
   watcher.on('minecraft-exit', ({ code, crashReport }) => {
     if (running.get(instanceId)?.process === child) running.delete(instanceId)
+    endPlaySession(MINECRAFT_LAUNCHER_ID, instanceId)
     emit('game', getGameState())
     if (code !== 0) {
       emit('gameLog', { instanceId, line: `Игра завершилась с кодом ${code}`, stream: 'err' })

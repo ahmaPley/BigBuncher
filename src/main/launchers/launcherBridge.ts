@@ -5,6 +5,7 @@ import { extname } from 'node:path'
 import { JsonStore } from '../core/jsonStore'
 import { launcherDataFile, launcherDir } from '../core/paths'
 import { getSettings, updateSettings } from '../settings/settingsService'
+import { endPlaySession, isPlaySessionActive, startPlaySession } from '../playtime/playtimeService'
 import { activateLauncher, backendPath, getManifest, refreshLauncherIcons, setLauncherIcon } from './launcherService'
 
 /**
@@ -47,6 +48,26 @@ function runBackend(id: string, args: string[]): Promise<unknown> {
       ok(parsed)
     })
   })
+}
+
+/** Counts played time of a zip launcher's game: polls "<backend> status <game>" until running is false. */
+function watchPlaySession(id: string, game: string): void {
+  if (isPlaySessionActive(id, game)) return
+  startPlaySession(id, game)
+  let misses = 0
+  const tick = async (): Promise<void> => {
+    let running = true
+    try {
+      running = Boolean((await runBackend(id, ['status', game]) as { running?: unknown } | null)?.running)
+      misses = 0
+    } catch {
+      running = ++misses < 3 // a broken backend must not count forever
+    }
+    if (running) setTimeout(() => void tick(), 15_000)
+    else endPlaySession(id, game)
+  }
+  // the game process needs a moment to appear
+  setTimeout(() => void tick(), 20_000)
 }
 
 export async function bridgeCall(id: string, method: string, args: unknown[]): Promise<unknown> {
@@ -134,6 +155,8 @@ export async function bridgeCall(id: string, method: string, args: unknown[]): P
     case 'gameStarted':
       // Same behaviour as Minecraft launches: "after launch" setting.
       if (getSettings().afterLaunch === 'minimize') win?.minimize()
+      // gameStarted(<game folder>) — the play timer asks the backend's "status" until the game is closed.
+      if (typeof args[0] === 'string' && args[0]) watchPlaySession(id, args[0])
       return null
     default:
       throw new Error(`bridge: unknown method ${method}`)

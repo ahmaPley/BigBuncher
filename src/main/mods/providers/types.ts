@@ -8,6 +8,8 @@ export interface ResolvedModFile {
   fileName: string
   url: string
   iconUrl?: string
+  /** sha1 of the file when the platform gives it; a broken download is deleted instead of crashing the game. */
+  sha1?: string
   /** Required dependencies, as project ids of the same provider. */
   dependencies: string[]
 }

@@ -1274,3 +1274,268 @@ button.se-chip:hover {
 .more-menu button.danger {
   color: var(--red);
 }
+
+/* ---------- Рекомендуемые серверы / донат ---------- */
+.server-list {
+  display: grid;
+  gap: 6px;
+}
+.server-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+}
+.server-row:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+.server-name {
+  font-weight: 700;
+  font-size: 13px;
+}
+.server-tag {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.server-tag.vanilla {
+  color: var(--green-bright);
+  background: var(--green-soft);
+}
+.server-tag.pack {
+  color: #ffc66d;
+  background: rgba(255, 179, 64, 0.12);
+}
+.btn.donate-btn {
+  color: #ff7a93;
+}
+.btn.donate-btn:hover {
+  background: rgba(255, 90, 120, 0.12);
+}
+
+/* ---------- Дополнения ---------- */
+.addons-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+  align-items: start;
+}
+.addons-col {
+  display: grid;
+  gap: 18px;
+  min-width: 0;
+}
+.addons-col .card {
+  min-width: 0;
+}
+.addons-col .field {
+  margin-bottom: 10px;
+}
+@media (max-width: 1100px) {
+  .addons-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.addon-list {
+  display: grid;
+  gap: 6px;
+  max-height: 340px;
+  overflow-y: auto;
+}
+.addon-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid transparent;
+  cursor: pointer;
+}
+.addon-row:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+.addon-row.active {
+  border-color: color-mix(in srgb, var(--accent, var(--green)) 50%, transparent);
+}
+.addon-row.disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.addon-row .title {
+  font-weight: 700;
+  font-size: 14px;
+}
+.addon-row input[type='checkbox'] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--green);
+  flex-shrink: 0;
+}
+.howto {
+  margin: 0 0 14px;
+  padding-left: 20px;
+  display: grid;
+  gap: 10px;
+  line-height: 1.45;
+}
+
+/* editor */
+.addon-editor-page {
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 16px;
+}
+.addon-editor {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 180px minmax(0, 1fr) minmax(0, 1.15fr);
+  gap: 12px;
+}
+.addon-side {
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.addon-side-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+  padding: 4px 8px;
+}
+.addon-side-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 6px 8px;
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--text-muted);
+  text-align: left;
+}
+.addon-side-item:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text);
+}
+.addon-side-item.active {
+  background: var(--green-soft);
+  color: var(--text);
+}
+.addon-side-item.file {
+  font-family: Consolas, 'Cascadia Mono', monospace;
+  font-size: 12px;
+}
+.addon-side-item.disabled {
+  opacity: 0.4;
+}
+.addon-code,
+.addon-preview {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: #0b0f14;
+  overflow: hidden;
+}
+.addon-code-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  font-size: 12px;
+  border-bottom: 1px solid var(--border);
+  background: #121920;
+}
+.addon-code textarea {
+  flex: 1;
+  resize: none;
+  border: 0;
+  outline: none;
+  padding: 12px;
+  background: transparent;
+  color: #d6e2ee;
+  font: 12.5px/1.5 Consolas, 'Cascadia Mono', monospace;
+  tab-size: 2;
+  white-space: pre;
+}
+.addon-preview iframe {
+  flex: 1;
+  width: 100%;
+  border: 0;
+  background: #0d1117;
+}
+.addon-status {
+  font-size: 11px;
+  max-width: 60%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.addon-status.saved {
+  color: var(--green-bright);
+}
+.addon-status.dirty {
+  color: var(--text-dim);
+}
+.addon-status.error {
+  color: #ff8b8f;
+}
+@media (max-width: 1200px) {
+  .addon-editor {
+    grid-template-columns: 160px minmax(0, 1fr);
+    grid-template-rows: 1fr 1fr;
+  }
+  .addon-side {
+    grid-row: 1 / span 2;
+  }
+}
+.addon-side-item {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.addon-side-item:disabled {
+  cursor: default;
+}
+.addon-list {
+  grid-template-columns: minmax(0, 1fr);
+  overflow-x: hidden;
+}
+.addon-row > .btn {
+  flex-shrink: 0;
+}
+
+/* ---------- Рамка для программ ---------- */
+.window-dock {
+  position: relative;
+  border-radius: 12px;
+  border: 2px dashed var(--border-strong);
+  background: rgba(255, 255, 255, 0.02);
+  display: grid;
+  place-items: center;
+}
+.window-dock.attached {
+  border: 1px solid var(--border);
+  background: #000;
+}
+.window-dock-hint {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  text-align: center;
+  color: var(--text-muted);
+  padding: 24px;
+}

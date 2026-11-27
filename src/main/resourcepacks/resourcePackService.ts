@@ -145,11 +145,17 @@ export function syncSharedPacksIntoInstance(instanceId: string): void {
   writeFileSync(join(dst, SYNC_MARKER), JSON.stringify(shared))
 
   const auto = settingsStore().get().autoEnable.filter((n) => shared.includes(n))
-  enableInOptions(join(instanceDir(instanceId), 'options.txt'), auto.map((n) => `file/${n}`))
+  const loader = getInstance(instanceId).loader
+  const modded = loader === 'forge' || loader === 'neoforge'
+  enableInOptions(join(instanceDir(instanceId), 'options.txt'), auto.map((n) => `file/${n}`), modded)
 }
 
-/** Adds packs to resourcePacks (and incompatibleResourcePacks, so other-version packs load silently). */
-function enableInOptions(optionsFile: string, packs: string[]): void {
+/**
+ * Adds packs to resourcePacks (and incompatibleResourcePacks, so other-version packs load silently).
+ * Forge/NeoForge: "mod_resources" must sit right above "vanilla" — if it is missing from the list the loader
+ * puts it BELOW vanilla, and mods can no longer override vanilla assets (title panorama, textures…).
+ */
+function enableInOptions(optionsFile: string, packs: string[], modded = false): void {
   if (!packs.length) return
   const lines = existsSync(optionsFile) ? readFileSync(optionsFile, 'utf8').split(/\r?\n/) : []
   const update = (key: string, base: string[]): void => {
@@ -161,6 +167,10 @@ function enableInOptions(optionsFile: string, packs: string[]): void {
       } catch {
         /* keep base */
       }
+    }
+    if (modded && key === 'resourcePacks' && !list.includes('mod_resources')) {
+      const v = list.indexOf('vanilla')
+      list.splice(v >= 0 ? v + 1 : 0, 0, 'mod_resources')
     }
     for (const p of packs) if (!list.includes(p)) list.push(p)
     const line = `${key}:${JSON.stringify(list)}`

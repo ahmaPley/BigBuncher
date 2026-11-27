@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import type { LoaderId, NewsItem } from '../../../shared/types'
+import { MINECRAFT_LAUNCHER_ID, type LoaderId, type NewsItem, type RecommendedServer, type ServerStatus } from '../../../shared/types'
+import { DONATE_URL, RECOMMENDED_SERVERS } from '../../../shared/servers'
 import { Icon } from '../components/Icon'
 import { InstancePicker } from '../components/InstancePicker'
 import { PlayButton } from '../components/PlayButton'
@@ -8,12 +9,12 @@ import { BlockIcon, Button, Modal } from '../components/ui'
 import { api } from '../lib/api'
 import { BACKGROUNDS, LOADER_ICONS, LOADER_LABELS } from '../lib/assets'
 import { useApp } from '../lib/appState'
-import { formatDate } from '../lib/format'
+import { formatDate, formatPlaytime } from '../lib/format'
 
 const QUICK_LOADERS: LoaderId[] = ['forge', 'fabric', 'neoforge', 'quilt']
 
 export function HomePage() {
-  const { settings, selectedAccount, skinOf, navigate, logs, game } = useApp()
+  const { settings, selectedAccount, skinOf, navigate, logs, game, playtime } = useApp()
   const skin = skinOf(selectedAccount)
   const [logsOpen, setLogsOpen] = useState(false)
 
@@ -43,6 +44,13 @@ export function HomePage() {
                   {selectedAccount ? (selectedAccount.type === 'microsoft' ? 'Онлайн' : 'Оффлайн') : 'Нет аккаунта'}
                 </span>
               )}
+              {(playtime[MINECRAFT_LAUNCHER_ID] ?? 0) > 0 && (
+                <span className="chip" title="Сколько ты наиграл в Minecraft через BigBuncher">
+                  <Icon name="clock" size={14} />
+                  {formatPlaytime(playtime[MINECRAFT_LAUNCHER_ID])}
+                </span>
+              )}
+              {!settings!.hideDonate && <DonateButton />}
               {logs.length > 0 && (
                 <Button size="sm" variant="ghost" icon="terminal" onClick={() => setLogsOpen(true)}>
                   Консоль
@@ -65,7 +73,7 @@ export function HomePage() {
         </section>
 
         <section className="home-cards">
-          <NewsCard />
+          {settings!.hideServers ? <NewsCard /> : <ServersCard />}
           <div className="card">
             <div className="card-title">
               <Icon name="zap" />
@@ -85,6 +93,107 @@ export function HomePage() {
 
       {logsOpen && <LogsModal onClose={() => setLogsOpen(false)} />}
     </div>
+  )
+}
+
+function ServersCard() {
+  const { selectedInstance, instances, launch, navigate, toast, game, run } = useApp()
+  const [status, setStatus] = useState<Record<string, ServerStatus>>({})
+  const [checking, setChecking] = useState<string>()
+
+  useEffect(() => {
+    for (const s of RECOMMENDED_SERVERS) {
+      if (s.address) api.server.ping(s.address).then((st) => setStatus((m) => ({ ...m, [s.id]: st })), () => undefined)
+    }
+  }, [])
+
+  const download = async (s: RecommendedServer): Promise<void> => {
+    setChecking(s.id)
+    const res = await run(() => api.share.installFeatured(s.id))
+    setChecking(undefined)
+    if (!res) return
+    if (res.failed.length) toast('error', 'Не всё скачалось', `Не получилось: ${res.failed.join(', ')}`)
+    else toast('success', `«${s.name}» готова`, 'Жми «Играть»')
+  }
+
+  const play = async (s: RecommendedServer): Promise<void> => {
+    const own = s.pack && instances.find((i) => i.source === s.id)
+    if (s.pack) return own ? launch(own.id) : download(s)
+    if (!selectedInstance) {
+      toast('info', 'Сначала установи версию', s.kind === 'pack' ? s.packNote : `Подойдёт ${s.versions}`)
+      return navigate('install')
+    }
+    if (s.kind === 'pack') {
+      // compares mods/version with the server and opens Доктор when something is missing
+      setChecking(s.id)
+      const st = await api.server.check(selectedInstance.id, s.address!).catch(() => undefined)
+      setChecking(undefined)
+      if (st && !st.ok && st.online) return
+    }
+    await launch(selectedInstance.id, { server: s.address! })
+  }
+
+  return (
+    <div className="card">
+      <div className="card-title">
+        <Icon name="server" />
+        Рекомендуемые серверы
+      </div>
+      <div className="server-list">
+        {RECOMMENDED_SERVERS.map((s) => {
+          const st = status[s.id]
+          const own = s.pack && instances.find((i) => i.source === s.id)
+          const busy = own ? game.sessions.some((g) => g.instanceId === own.id) : !s.pack && selectedInstance && game.sessions.some((g) => g.instanceId === selectedInstance.id)
+          return (
+            <div key={s.id} className="server-row" title={s.description}>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div className="row" style={{ gap: 6 }}>
+                  <span className="server-name">{s.name}</span>
+                  <span className="server-tag">{s.versions}</span>
+                  <span className={`server-tag ${s.kind}`}>{s.kind === 'vanilla' ? 'Ванилла' : 'Нужна сборка'}</span>
+                </div>
+                <div className="dim ellipsis" style={{ fontSize: 11 }}>
+                  {s.pack
+                    ? own
+                      ? `✓ установлена · «${own.name}»`
+                      : `сборка с картой · ${s.pack.size}`
+                    : <>{st ? (st.online ? `● онлайн ${st.players ? `${st.players.online}/${st.players.max}` : ''}` : '○ не отвечает') : 'проверяю…'} · {s.address}</>}
+                </div>
+              </div>
+              <Button
+                size="sm"
+                variant="primary"
+                icon={s.pack && !own ? 'download' : 'play'}
+                loading={checking === s.id}
+                disabled={Boolean(busy)}
+                title={s.pack ? s.packNote : selectedInstance ? `Зайти через «${selectedInstance.name}»` : undefined}
+                onClick={() => void play(s)}
+              >
+                {s.pack ? (own ? 'Играть' : 'Скачать') : 'Зайти'}
+              </Button>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function DonateButton() {
+  const [open, setOpen] = useState(false)
+  return (
+    <>
+      <Button size="sm" variant="ghost" icon="heart" className="donate-btn" title="Поддержать BigBuncher" onClick={() => (DONATE_URL ? void api.system.openExternal(DONATE_URL) : setOpen(true))}>
+        Поддержать
+      </Button>
+      {open && (
+        <Modal title="Поддержать BigBuncher" onClose={() => setOpen(false)}>
+          <p className="muted" style={{ margin: 0 }}>
+            Ссылка на донат скоро появится. Спасибо, что пользуешься BigBuncher! Кнопку можно скрыть в настройках.
+          </p>
+        </Modal>
+      )}
+    </>
   )
 }
 

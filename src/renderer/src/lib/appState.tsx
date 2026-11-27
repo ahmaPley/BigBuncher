@@ -1,11 +1,11 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import type { Account, BisectState, DevLogLine, Diagnosis, GameLogLine, GameState, Instance, LauncherInfo, LoaderId, MultiPack, Settings, SkinEntry, TaskState, UpdateInfo } from '../../../shared/types'
+import type { Account, BisectState, DevLogLine, Diagnosis, GameLogLine, GameState, Instance, LauncherInfo, LoaderId, MultiPack, Playtime, Settings, SkinEntry, TaskState, UpdateInfo } from '../../../shared/types'
 import { api } from './api'
 import { MINECRAFT } from './launchers'
 import { errorText } from './format'
 import { applyLanguage } from './i18nDom'
 
-export type PageId = 'home' | 'install' | 'instances' | 'mods' | 'packs' | 'skins' | 'dev' | 'settings'
+export type PageId = 'home' | 'install' | 'instances' | 'mods' | 'packs' | 'skins' | 'dev' | 'settings' | 'addons'
 
 export interface Toast {
   id: number
@@ -46,9 +46,11 @@ interface AppState {
   run<T>(action: () => Promise<T>, success?: string): Promise<T | undefined>
 
   /** Starts the game; asks "Vulkan или OpenGL?" first when that was never answered. */
-  launch(instanceId: string, opts?: { skipPreflight?: boolean }): Promise<void>
-  graphicsAsk?: { instanceId: string; skipPreflight?: boolean }
-  setGraphicsAsk(v?: { instanceId: string; skipPreflight?: boolean }): void
+  launch(instanceId: string, opts?: { skipPreflight?: boolean; server?: string }): Promise<void>
+  graphicsAsk?: { instanceId: string; skipPreflight?: boolean; server?: string }
+  setGraphicsAsk(v?: { instanceId: string; skipPreflight?: boolean; server?: string }): void
+  /** Played time per launcher id, ms. */
+  playtime: Playtime
   /** Diagnosis shown in the Доктор крашей window. */
   diagnosis?: Diagnosis
   setDiagnosis(d?: Diagnosis): void
@@ -86,6 +88,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   const [bisect, setBisect] = useState<BisectState>()
   const [devLogs, setDevLogs] = useState<DevLogLine[]>([])
   const [plugins, setPlugins] = useState<LauncherInfo[]>([])
+  const [playtime, setPlaytime] = useState<Playtime>({})
   const [launchersOpen, setLaunchersOpen] = useState(false)
   const toastId = useRef(0)
   const settingsRef = useRef<Settings | undefined>(undefined)
@@ -128,7 +131,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const launch = useCallback(
-    async (instanceId: string, opts?: { skipPreflight?: boolean }) => {
+    async (instanceId: string, opts?: { skipPreflight?: boolean; server?: string }) => {
       try {
         if (settingsRef.current?.graphicsApi === 'ask' && (await api.graphics.hasChoice(instanceId))) {
           setGraphicsAsk({ instanceId, ...opts })
@@ -157,6 +160,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     void refreshSkins()
     api.skins.defaultSkin().then(setDefaultSkin, () => undefined)
     api.launchers.list().then(setPlugins, () => undefined)
+    api.playtime.get().then(setPlaytime, () => undefined)
 
     const offs = [
       api.on('settingsChanged', setSettings),
@@ -170,6 +174,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       api.on('bisect', setBisect),
       api.on('devLog', (line) => setDevLogs((l) => [...l.slice(-1500), line])),
       api.on('launchersChanged', setPlugins),
+      api.on('playtime', setPlaytime),
       api.on('task', (task) => {
         setTasks((list) => [...list.filter((t) => t.id !== task.id), task])
         if (task.status === 'error') toast('error', task.title, task.error)
@@ -229,9 +234,10 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       setDiagnosis,
       bisect,
       devLogs,
-      clearDevLogs: () => setDevLogs([])
+      clearDevLogs: () => setDevLogs([]),
+      playtime
     }
-  }, [page, pendingLoader, settings, accounts, instances, multiPacks, update, skins, defaultSkin, game, tasks, logs, accountsOpen, refreshSkins, toast, toasts, dismissToast, run, launch, graphicsAsk, diagnosis, bisect, devLogs, plugins, launchersOpen])
+  }, [playtime, page, pendingLoader, settings, accounts, instances, multiPacks, update, skins, defaultSkin, game, tasks, logs, accountsOpen, refreshSkins, toast, toasts, dismissToast, run, launch, graphicsAsk, diagnosis, bisect, devLogs, plugins, launchersOpen])
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>
 }

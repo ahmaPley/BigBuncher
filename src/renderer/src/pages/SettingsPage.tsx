@@ -13,7 +13,7 @@ import { ACCENT_PRESETS } from '../lib/theme'
 type JavaOption = { path: string; version: string }
 
 export function SettingsPage() {
-  const { settings, run, toast, update: updateInfo, launchers, activeLauncher, setLaunchersOpen } = useApp()
+  const { settings, run, toast, update: updateInfo, launchers, activeLauncher, navigate } = useApp()
   const [checking, setChecking] = useState(false)
   const [totalMb, setTotalMb] = useState(8192)
   const [javas, setJavas] = useState<JavaOption[]>()
@@ -81,8 +81,8 @@ export function SettingsPage() {
           <div className="card-title">
             <Icon name="grid" /> Лаунчеры
             <span className="spacer" />
-            <Button size="sm" icon="plus" onClick={() => setLaunchersOpen(true)}>
-              More launchers
+            <Button size="sm" icon="puzzle" onClick={() => navigate('addons')}>
+              Дополнения
             </Button>
           </div>
           <div className="field" style={{ marginBottom: 16 }}>
@@ -115,6 +115,26 @@ export function SettingsPage() {
             </div>
             <span className="spacer" />
             <Toggle on={s.watchDownloads !== false} onChange={(v) => update({ watchDownloads: v })} />
+          </div>
+          <div className="setting-row" style={{ borderTop: 0, paddingTop: 0, marginBottom: 16 }}>
+            <div>
+              <div>Скрыть рекомендуемые серверы</div>
+              <div className="dim" style={{ fontSize: 12 }}>
+                На главной вместо них будут новости Minecraft.
+              </div>
+            </div>
+            <span className="spacer" />
+            <Toggle on={Boolean(s.hideServers)} onChange={(v) => update({ hideServers: v })} />
+          </div>
+          <div className="setting-row" style={{ borderTop: 0, paddingTop: 0, marginBottom: 16 }}>
+            <div>
+              <div>Скрыть кнопку доната</div>
+              <div className="dim" style={{ fontSize: 12 }}>
+                Сердечко «Поддержать» на главной.
+              </div>
+            </div>
+            <span className="spacer" />
+            <Toggle on={Boolean(s.hideDonate)} onChange={(v) => update({ hideDonate: v })} />
           </div>
           <div className="field">
             <label>Иконка лаунчера Minecraft</label>

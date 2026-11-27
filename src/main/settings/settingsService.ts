@@ -25,7 +25,10 @@ function defaults(): Settings {
     activeLauncher: MINECRAFT_LAUNCHER_ID,
     launcherIcons: {},
     launcherAccents: {},
-    watchDownloads: true
+    watchDownloads: true,
+    hideServers: false,
+    hideDonate: false,
+    devExtended: false
   }
 }
 
